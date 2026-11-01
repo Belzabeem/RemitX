@@ -116,7 +116,13 @@ fn setup(env: &Env) -> TestHarness<'_> {
 fn create_escrow(h: &TestHarness, expires_in: u64) -> BytesN<32> {
     let amount: i128 = 1_000_000;
     let expires_at = h.escrow.env.ledger().timestamp() + expires_in;
-    h.escrow.deposit(&h.sender, &h.recipient, &amount, &h.token.address, &expires_at)
+    h.escrow.deposit(
+        &h.sender,
+        &h.recipient,
+        &amount,
+        &h.token.address,
+        &expires_at,
+    )
 }
 
 // ---------------------------------------------------------------------------
@@ -147,7 +153,13 @@ fn test_deposit_zero_amount_panics() {
     let env = Env::default();
     let h = setup(&env);
     let expires_at = env.ledger().timestamp() + 3600;
-    h.escrow.deposit(&h.sender, &h.recipient, &0i128, &h.token.address, &expires_at);
+    h.escrow.deposit(
+        &h.sender,
+        &h.recipient,
+        &0i128,
+        &h.token.address,
+        &expires_at,
+    );
 }
 
 #[test]
@@ -156,7 +168,13 @@ fn test_deposit_past_expiry_panics() {
     let env = Env::default();
     let h = setup(&env);
     let expires_at = env.ledger().timestamp(); // now == expiry, not strictly after
-    h.escrow.deposit(&h.sender, &h.recipient, &1_000_000i128, &h.token.address, &expires_at);
+    h.escrow.deposit(
+        &h.sender,
+        &h.recipient,
+        &1_000_000i128,
+        &h.token.address,
+        &expires_at,
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -212,7 +230,7 @@ fn test_refund_before_expiry_panics() {
     let env = Env::default();
     let h = setup(&env);
     let id = create_escrow(&h, 3600);
-    h.escrow.refund(&id);
+    h.escrow.refund(&id, &None);
 }
 
 // ---------------------------------------------------------------------------

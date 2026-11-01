@@ -49,7 +49,6 @@ const MAX_FEE_BPS: u32 = 100;
 /// Fixed-point scaling factor for rates (1e9).
 const RATE_SCALE: i128 = 1_000_000_000;
 /// Maximum shares that can be removed in a single call.
-const MAX_REMOVE_SHARES_PCT: u32 = 100;
 
 // ---------------------------------------------------------------------------
 // Storage keys
@@ -65,7 +64,7 @@ pub enum StorageKey {
     Admin,
     FeeTreasury,
     ProtocolFeeBps,
-    PairList(Vec<BytesN<32>>),
+    PairList,
 }
 
 // ---------------------------------------------------------------------------
@@ -129,12 +128,6 @@ pub struct ExchangeContract;
 impl ExchangeContract {
     /// Create a new trading pair. Permissionless, but the fee is capped.
     pub fn create_pair(env: Env, base: Address, quote: Address, fee_bps: u32) -> BytesN<32> {
-        if base == Address::from_string(&env, "").unwrap() {
-            panic_with_error!(env, ExchangeError::ZeroAddress);
-        }
-        if quote == Address::from_string(&env, "").unwrap() {
-            panic_with_error!(env, ExchangeError::ZeroAddress);
-        }
         if base == quote {
             panic_with_error!(env, ExchangeError::InvalidToken);
         }
@@ -187,7 +180,11 @@ impl ExchangeContract {
             .set(&StorageKey::PairList, &pair_list);
 
         env.events().publish(
-            (symbol_short!("exchange"), symbol_short!("new_pair"), pair_id.clone()),
+            (
+                symbol_short!("exchange"),
+                symbol_short!("new_pair"),
+                pair_id.clone(),
+            ),
             (base, quote, fee_bps),
         );
 
@@ -242,10 +239,16 @@ impl ExchangeContract {
 
         let shares_key = StorageKey::Shares(pair_id.clone(), provider.clone());
         let owned: i128 = env.storage().persistent().get(&shares_key).unwrap_or(0);
-        env.storage().persistent().set(&shares_key, &(owned + shares));
+        env.storage()
+            .persistent()
+            .set(&shares_key, &(owned + shares));
 
         env.events().publish(
-            (symbol_short!("exchange"), symbol_short!("add_liq"), pair_id.clone()),
+            (
+                symbol_short!("exchange"),
+                symbol_short!("add_liq"),
+                pair_id.clone(),
+            ),
             (provider, base_amount, quote_amount, shares),
         );
 
@@ -555,7 +558,7 @@ impl ExchangeContract {
         env.storage().instance().set(&StorageKey::Admin, &admin);
         env.storage()
             .instance()
-            .set(&StorageKey::PairList, &Vec::new(&env));
+            .set(&StorageKey::PairList, &Vec::<BytesN<32>>::new(&env));
         env.storage()
             .instance()
             .set(&StorageKey::ProtocolFeeBps, &0u32);

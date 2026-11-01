@@ -186,8 +186,9 @@ fn test_withdraw_partial() {
     let h = setup(&env);
     h.staking.stake(&h.staker, &1_000_000i128);
 
-    let pos = h.staking.withdraw(&h.staker, &400_000i128);
-    assert_eq!(pos.amount, 600_000i128);
+    let res = h.staking.withdraw(&h.staker, &400_000i128);
+    assert_eq!(res.amount, 400_000i128);
+    assert_eq!(h.staking.get_stake(&h.staker).amount, 600_000i128);
     assert_eq!(h.token.balance(&h.staker), 9_400_000i128);
 }
 

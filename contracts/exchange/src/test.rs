@@ -85,8 +85,7 @@ fn setup(env: &Env) -> TestHarness<'_> {
     let base = MockTokenClient::new(env, &env.register(MockToken, ()));
     let quote = MockTokenClient::new(env, &env.register(MockToken, ()));
     let admin = Address::generate(env);
-    let exchange =
-        ExchangeContractClient::new(env, &env.register(ExchangeContract, (admin,)));
+    let exchange = ExchangeContractClient::new(env, &env.register(ExchangeContract, (admin,)));
 
     let lp = Address::generate(env);
     let trader = Address::generate(env);
@@ -135,7 +134,8 @@ fn test_create_duplicate_pair_panics() {
     let env = Env::default();
     let h = setup(&env);
     // Same pair, reversed argument order, must collide.
-    h.exchange.create_pair(&h.quote.address, &h.base.address, &FEE_BPS);
+    h.exchange
+        .create_pair(&h.quote.address, &h.base.address, &FEE_BPS);
 }
 
 #[test]
@@ -219,9 +219,13 @@ fn test_swap_base_for_quote() {
     seed_liquidity(&h);
 
     // 10_000 base in, expect >= 36_000 quote out.
-    let result = h
-        .exchange
-        .swap(&h.trader, &h.pair_id, &h.base.address, &10_000i128, &36_000i128);
+    let result = h.exchange.swap(
+        &h.trader,
+        &h.pair_id,
+        &h.base.address,
+        &10_000i128,
+        &36_000i128,
+    );
     assert_eq!(result.amount_in, 10_000i128);
     assert_eq!(result.amount_out, 36_264i128);
     assert_eq!(result.fee_bps, FEE_BPS);
@@ -262,8 +266,13 @@ fn test_swap_slippage_guard_panics() {
     let h = setup(&env);
     seed_liquidity(&h);
     // Demand an output higher than the curve allows.
-    h.exchange
-        .swap(&h.trader, &h.pair_id, &h.base.address, &10_000i128, &50_000i128);
+    h.exchange.swap(
+        &h.trader,
+        &h.pair_id,
+        &h.base.address,
+        &10_000i128,
+        &50_000i128,
+    );
 }
 
 #[test]

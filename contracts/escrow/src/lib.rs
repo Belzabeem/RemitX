@@ -39,8 +39,6 @@ pub enum EscrowError {
     CannotCancelLocked = 10,
     InvalidFee = 11,
     InsufficientBalance = 12,
-    ZeroRecipient = 13,
-    ZeroSender = 14,
 }
 
 // ---------------------------------------------------------------------------
@@ -122,12 +120,7 @@ impl EscrowContract {
         asset: Address,
         expires_at: u64,
     ) -> BytesN<32> {
-        if sender == Address::from_string(&env, "").unwrap() {
-            panic_with_error!(env, EscrowError::ZeroSender);
-        }
-        if recipient == Address::from_string(&env, "").unwrap() {
-            panic_with_error!(env, EscrowError::ZeroRecipient);
-        }
+        sender.require_auth();
         if amount <= 0 {
             panic_with_error!(env, EscrowError::InvalidAmount);
         }
@@ -176,7 +169,7 @@ impl EscrowContract {
         sender_escs.push_back(escrow_id.clone());
         env.storage()
             .persistent()
-            .set(&StorageKey::EscrowBySender(sender), &sender_escs);
+            .set(&StorageKey::EscrowBySender(sender.clone()), &sender_escs);
 
         let mut recipient_escs: Vec<BytesN<32>> = env
             .storage()
@@ -184,16 +177,21 @@ impl EscrowContract {
             .get(&StorageKey::EscrowByRecipient(recipient.clone()))
             .unwrap_or(Vec::new(&env));
         recipient_escs.push_back(escrow_id.clone());
-        env.storage()
-            .persistent()
-            .set(&StorageKey::EscrowByRecipient(recipient), &recipient_escs);
+        env.storage().persistent().set(
+            &StorageKey::EscrowByRecipient(recipient.clone()),
+            &recipient_escs,
+        );
 
         env.storage()
             .instance()
             .set(&StorageKey::EscrowCount, &(count + 1));
 
         env.events().publish(
-            (symbol_short!("escrow"), symbol_short!("deposit"), escrow_id.clone()),
+            (
+                symbol_short!("escrow"),
+                symbol_short!("deposit"),
+                escrow_id.clone(),
+            ),
             (sender, recipient, amount, asset, expires_at),
         );
 
@@ -206,17 +204,16 @@ impl EscrowContract {
     /// points) is deducted and sent to the fee treasury. Supports partial
     /// release via `amount` — if `amount` is less than the escrowed amount,
     /// the escrow remains `Locked` with the balance intact.
-    pub fn release(
-        env: Env,
-        escrow_id: BytesN<32>,
-        amount: Option<i128>,
-    ) -> ReleaseResult {
+    pub fn release(env: Env, escrow_id: BytesN<32>, amount: Option<i128>) -> ReleaseResult {
         let platform = Self::platform(&env);
         platform.require_auth();
 
         let mut state = Self::load_escrow(&env, &escrow_id);
         if state.status != EscrowStatus::Locked {
             panic_with_error!(env, EscrowError::NotLocked);
+        }
+        if env.ledger().timestamp() >= state.expires_at {
+            panic_with_error!(env, EscrowError::Expired);
         }
 
         let fee_bps: u32 = env
@@ -449,9 +446,7 @@ impl EscrowContract {
         if fee_bps > 500 {
             panic_with_error!(env, EscrowError::InvalidFee);
         }
-        env.storage()
-            .instance()
-            .set(&StorageKey::FeeBps, &fee_bps);
+        env.storage().instance().set(&StorageKey::FeeBps, &fee_bps);
     }
 
     /// Set the fee treasury address. Platform-only.
@@ -507,12 +502,7 @@ impl EscrowContract {
 
     /// Contract constructor: records the platform release authority, fee
     /// treasury, and default fee (0 bps).
-    pub fn __constructor(
-        env: Env,
-        platform: Address,
-        fee_treasury: Address,
-        fee_bps: u32,
-    ) {
+    pub fn __constructor(env: Env, platform: Address, fee_treasury: Address, fee_bps: u32) {
         if fee_bps > 500 {
             panic_with_error!(env, EscrowError::InvalidFee);
         }
@@ -522,15 +512,11 @@ impl EscrowContract {
         env.storage()
             .instance()
             .set(&StorageKey::FeeTreasury, &fee_treasury);
-        env.storage()
-            .instance()
-            .set(&StorageKey::FeeBps, &fee_bps);
+        env.storage().instance().set(&StorageKey::FeeBps, &fee_bps);
         env.storage()
             .instance()
             .set(&StorageKey::EscrowCount, &0u32);
-        env.storage()
-            .instance()
-            .set(&StorageKey::Paused, &false);
+        env.storage().instance().set(&StorageKey::Paused, &false);
     }
 }
 

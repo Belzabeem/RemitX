@@ -58,7 +58,7 @@ pub enum StorageKey {
     AprBps,
     RewardPool,
     Paused,
-    StakerList(Vec<Address>),
+    StakerList,
 }
 
 // ---------------------------------------------------------------------------
@@ -115,21 +115,20 @@ impl StakingContract {
         env.storage().instance().set(&StorageKey::Admin, &admin);
         env.storage().instance().set(&StorageKey::Token, &token);
         env.storage().instance().set(&StorageKey::AprBps, &1_000u32); // 10% default
-        env.storage().instance().set(&StorageKey::RewardPool, &0i128);
+        env.storage()
+            .instance()
+            .set(&StorageKey::RewardPool, &0i128);
         env.storage()
             .persistent()
             .set(&StorageKey::TotalStaked, &0i128);
         env.storage().instance().set(&StorageKey::Paused, &false);
         env.storage()
             .instance()
-            .set(&StorageKey::StakerList, &Vec::new(&env));
+            .set(&StorageKey::StakerList, &Vec::<Address>::new(&env));
     }
 
     /// Stake `amount` tokens from `staker` (requires token approval).
     pub fn stake(env: Env, staker: Address, amount: i128) -> StakeResult {
-        if staker == Address::from_string(&env, "").unwrap() {
-            panic_with_error!(env, StakeError::ZeroAddress);
-        }
         if env
             .storage()
             .instance()
@@ -192,7 +191,11 @@ impl StakingContract {
         };
 
         env.events().publish(
-            (symbol_short!("staking"), symbol_short!("stake"), result.staker.clone()),
+            (
+                symbol_short!("staking"),
+                symbol_short!("stake"),
+                result.staker.clone(),
+            ),
             amount,
         );
 
@@ -241,7 +244,7 @@ impl StakingContract {
             .set(&StorageKey::Stake(staker.clone()), &pos);
 
         let result = UnstakeResult {
-            staker,
+            staker: staker.clone(),
             amount,
             rewards_claimed: 0,
             timestamp: env.ledger().timestamp(),
@@ -299,7 +302,7 @@ impl StakingContract {
         token::Client::new(&env, &token_addr).transfer(&contract, &staker, &reward);
 
         let result = ClaimResult {
-            staker,
+            staker: staker.clone(),
             rewards_claimed: reward,
             timestamp: env.ledger().timestamp(),
         };

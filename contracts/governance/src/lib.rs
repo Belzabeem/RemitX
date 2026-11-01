@@ -16,8 +16,8 @@
 #![no_std]
 
 use soroban_sdk::{
-    contract, contracterror, contractimpl, panic_with_error, symbol_short, token,
-    Address, Bytes, BytesN, Env, Vec,
+    contract, contracterror, contractimpl, panic_with_error, symbol_short, token, Address, Bytes,
+    BytesN, Env, Vec,
 };
 
 // ---------------------------------------------------------------------------
@@ -71,7 +71,7 @@ pub enum StorageKey {
     TotalSupply,
     Admin,
     QuorumBps,
-    VoterList(Vec<Address>),
+    VoterList,
 }
 
 // ---------------------------------------------------------------------------
@@ -151,7 +151,7 @@ impl GovernanceContract {
             .set(&StorageKey::QuorumBps, &DEFAULT_QUORUM_BPS);
         env.storage()
             .instance()
-            .set(&StorageKey::VoterList, &Vec::new(&env));
+            .set(&StorageKey::VoterList, &Vec::<Address>::new(&env));
     }
 
     /// Create a proposal. The proposer must hold a non-zero token balance.
@@ -163,9 +163,6 @@ impl GovernanceContract {
         action_hash: BytesN<32>,
         voting_period: u64,
     ) -> u32 {
-        if proposer == Address::from_string(&env, "").unwrap() {
-            panic_with_error!(env, GovernanceError::ZeroAddress);
-        }
         proposer.require_auth();
         if description.is_empty() || description.len() > 1024 {
             panic_with_error!(env, GovernanceError::InvalidDescription);
@@ -217,9 +214,6 @@ impl GovernanceContract {
     /// Cast a vote on proposal `id`. Weight equals the voter's current token
     /// balance. Reverts if voting hasn't started, ended, or already used.
     pub fn vote(env: Env, voter: Address, id: u32, support: bool) -> VoteResult {
-        if voter == Address::from_string(&env, "").unwrap() {
-            panic_with_error!(env, GovernanceError::ZeroAddress);
-        }
         voter.require_auth();
         let mut proposal = Self::load_proposal(&env, id);
         let now = env.ledger().timestamp();
@@ -274,7 +268,7 @@ impl GovernanceContract {
 
         env.events().publish(
             (symbol_short!("gov"), symbol_short!("vote"), id),
-            (result.voter, support, weight),
+            (result.voter.clone(), support, weight),
         );
 
         result

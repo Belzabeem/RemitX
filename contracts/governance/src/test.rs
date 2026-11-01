@@ -6,7 +6,7 @@ extern crate std;
 
 use super::*;
 use soroban_sdk::testutils::{Address as _, Ledger};
-use soroban_sdk::{contract, contractimpl, Address, Bytes, Env, Symbol};
+use soroban_sdk::{contract, contractimpl, Address, Bytes, BytesN, Env, Symbol};
 
 // ---------------------------------------------------------------------------
 // Minimal mock token contract (test-only).
@@ -96,7 +96,7 @@ fn setup(env: &Env) -> TestHarness<'_> {
 
     let gov_id = env.register(
         GovernanceContract,
-        (token.address.clone(), TOTAL_SUPPLY),
+        (Address::generate(env), token.address.clone(), TOTAL_SUPPLY),
     );
     let gov = GovernanceContractClient::new(env, &gov_id);
 
@@ -110,7 +110,14 @@ fn setup(env: &Env) -> TestHarness<'_> {
 }
 
 fn description(env: &Env) -> Bytes {
-    Bytes::from_slice(env, b"Upgrade the remittance fee logic to support tiered pricing")
+    Bytes::from_slice(
+        env,
+        b"Upgrade the remittance fee logic to support tiered pricing",
+    )
+}
+
+fn action(env: &Env) -> BytesN<32> {
+    BytesN::from_array(env, &[0u8; 32])
 }
 
 fn title() -> Symbol {
@@ -119,8 +126,13 @@ fn title() -> Symbol {
 
 /// Create a proposal from alice that is open for voting.
 fn create_proposal(h: &TestHarness) -> u32 {
-    h.gov
-        .propose(&h.alice, &title(), &description(&h.gov.env), &VOTING_PERIOD)
+    h.gov.propose(
+        &h.alice,
+        &title(),
+        &description(&h.gov.env),
+        &action(&h.gov.env),
+        &VOTING_PERIOD,
+    )
 }
 
 // ---------------------------------------------------------------------------
@@ -149,16 +161,22 @@ fn test_propose_empty_description_panics() {
     let env = Env::default();
     let h = setup(&env);
     let empty = Bytes::new(&env);
-    h.gov.propose(&h.alice, &title(), &empty, &VOTING_PERIOD);
+    h.gov
+        .propose(&h.alice, &title(), &empty, &action(&env), &VOTING_PERIOD);
 }
 
 #[test]
-#[should_panic(expected = "Error(Contract, #1)")]
+#[should_panic(expected = "Error(Contract, #9)")]
 fn test_propose_period_too_short_panics() {
     let env = Env::default();
     let h = setup(&env);
-    h.gov
-        .propose(&h.alice, &title(), &description(&env), &60u64); // < 1 hour
+    h.gov.propose(
+        &h.alice,
+        &title(),
+        &description(&env),
+        &action(&env),
+        &60u64,
+    ); // < 1 hour
 }
 
 // ---------------------------------------------------------------------------
@@ -171,7 +189,7 @@ fn test_vote_records_weight() {
     let h = setup(&env);
     let id = create_proposal(&h);
 
-    let w = h.gov.vote(&h.alice, &id, &true);
+    let w = h.gov.vote(&h.alice, &id, &true).voting_power;
     assert_eq!(w, 600_000i128); // alice's balance is her voting power
     let p = h.gov.get_proposal(&id);
     assert_eq!(p.yes_votes, 600_000i128);
@@ -196,7 +214,8 @@ fn test_vote_after_close_panics() {
     let env = Env::default();
     let h = setup(&env);
     let id = create_proposal(&h);
-    env.ledger().set_timestamp(env.ledger().timestamp() + VOTING_PERIOD + 1);
+    env.ledger()
+        .set_timestamp(env.ledger().timestamp() + VOTING_PERIOD + 1);
     h.gov.vote(&h.alice, &id, &true);
 }
 
@@ -214,11 +233,12 @@ fn test_execute_passed_proposal() {
     h.gov.vote(&h.alice, &id, &true);
     h.gov.vote(&h.carol, &id, &true);
 
-    env.ledger().set_timestamp(env.ledger().timestamp() + VOTING_PERIOD + 1);
+    env.ledger()
+        .set_timestamp(env.ledger().timestamp() + VOTING_PERIOD + 1);
     assert_eq!(h.gov.get_status(&id), ProposalStatus::Passed);
 
     let p = h.gov.execute(&id);
-    assert!(p.executed);
+    assert!(p.success);
     assert_eq!(h.gov.get_status(&id), ProposalStatus::Executed);
 }
 
@@ -240,7 +260,8 @@ fn test_execute_twice_panics() {
     let h = setup(&env);
     let id = create_proposal(&h);
     h.gov.vote(&h.alice, &id, &true);
-    env.ledger().set_timestamp(env.ledger().timestamp() + VOTING_PERIOD + 1);
+    env.ledger()
+        .set_timestamp(env.ledger().timestamp() + VOTING_PERIOD + 1);
     h.gov.execute(&id);
     h.gov.execute(&id);
 }
@@ -256,7 +277,8 @@ fn test_execute_rejected_proposal_panics() {
     h.gov.vote(&h.bob, &id, &false); // 300k no
     h.gov.vote(&h.carol, &id, &true); // 100k yes
 
-    env.ledger().set_timestamp(env.ledger().timestamp() + VOTING_PERIOD + 1);
+    env.ledger()
+        .set_timestamp(env.ledger().timestamp() + VOTING_PERIOD + 1);
     assert_eq!(h.gov.get_status(&id), ProposalStatus::Rejected);
     h.gov.execute(&id);
 }
