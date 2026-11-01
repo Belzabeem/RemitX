@@ -1,190 +1,429 @@
-# RemitX - Official Documentation
+# RemitX
+
+**Cross-border remittance protocol on Stellar.**
+
+RemitX enables fast, low-cost, non-custodial money transfers between Nigeria (NGN), the Philippines (PHP), the United Kingdom (GBP) and the United States (USD). A sender picks an amount and a recipient, RemitX finds the cheapest path across Stellar's anchor and liquidity network, and the funds settle in seconds, optionally held in a Soroban escrow until release conditions are met. Built on Soroban smart contracts with native Stellar path payments and anchor integration.
 
 [![Next.js](https://img.shields.io/badge/Next.js-16.2-000000?logo=next.js)](https://nextjs.org)
 [![Stellar](https://img.shields.io/badge/Stellar-Network-7B00FF?logo=stellar)](https://stellar.org)
+[![Soroban](https://img.shields.io/badge/Soroban-Runtime-000000?logo=stellar)](https://soroban.stellar.org)
 [![Rust](https://img.shields.io/badge/Rust-1.97-dea584?logo=rust)](https://rust-lang.org)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript)](https://typescriptlang.org)
-[![Soroban](https://img.shields.io/badge/Soroban-Runtime-000000?logo=stellar)](https://soroban.stellar.org)
-[![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-4-06B6D4?logo=tailwindcss)](https://tailwindcss.com)
-[![Supabase](https://img.shields.io/badge/Supabase-Postgres-3ECF8E?logo=supabase)](https://supabase.com)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Built on Stellar](https://img.shields.io/badge/Built_on-Stellar-7B00FF?logo=stellar)](https://stellar.org)
-[![Contributions Welcome](https://img.shields.io/badge/Contributions-Welcome-brightgreen.svg)](CONTRIBUTING.md)
-
-**Moving money across borders, at the speed of light.**
 
 ---
 
-## Table of Contents
+## Table of contents
 
-- [Introduction](#introduction)
-- [Problem Statement](#problem-statement)
-- [Solution](#solution)
-- [Platform Architecture](#platform-architecture)
-- [Smart Contract System](#smart-contract-system)
-- [User Roles](#user-roles)
-- [The Remit Loop](#the-remit-loop)
-- [Security & Compliance](#security--compliance)
-- [Tech Stack](#tech-stack)
+- [Why RemitX](#why-remitx)
+- [How it works](#how-it-works)
+- [Supported corridors](#supported-corridors)
+- [Architecture](#architecture)
+- [Routing and rates](#routing-and-rates)
+- [Contract interface](#contract-interface)
+- [Escrow mechanics](#escrow-mechanics)
+- [Staking and governance](#staking-and-governance)
+- [Fee structure](#fee-structure)
+- [Security model](#security-model)
+- [Tech stack](#tech-stack)
+- [Getting started](#getting-started)
+- [Running tests](#running-tests)
 - [Roadmap](#roadmap)
-- [Setup](#setup)
-- [Running Tests](#running-tests)
 - [Contributing](#contributing)
 - [Resources](#resources)
-- [Contact](#contact)
+- [License](#license)
 
 ---
 
-## Introduction
+## Why RemitX
 
-**RemitX** is a mobile-first decentralized application (dApp) built on the **Stellar Network** that revolutionizes cross-border remittances. By leveraging Stellar's lightning-fast settlement layer and path payment protocol, RemitX intelligently routes funds through the most cost-effective payment paths, comparing anchor fees in real time to guarantee the best exchange rates for corridors spanning Nigeria (NGN), the Philippines (PHP), the United Kingdom (GBP), and the United States (USD).
+Cross-border remittance is a $700+ billion annual market, and the people who depend on it most are served worst. A nurse in the UK sending money to family in Lagos, a gig worker in the US supporting parents in Manila: all of them lose money and time to the same three problems.
 
-RemitX is designed for the millions of people who send money home every month - the diaspora workers, the gig economy earners, the families supporting loved ones across borders. Traditional remittance channels charge exorbitant fees and take days to settle. RemitX delivers **sub-5-second settlement** at a **fraction of the cost**, powered by the Stellar Network's decentralized infrastructure.
+**Exorbitant fees.** Traditional providers charge 5–10% per transfer. On a $200 monthly remittance, that is $10–$20 lost every single time.
 
----
+**Slow settlement.** International wires take 3–5 business days. When a family needs money for a medical bill or school fees, waiting is not an option.
 
-## Problem Statement
+**Opaque pricing.** Exchange rates are buried in the spread. Users rarely know the true cost until the transfer is done, and there is no side-by-side comparison of what each route actually charges.
 
-Cross-border remittances are a $700+ billion annual market, yet the people who depend on them most are served worst. Three core problems define the gap:
-
-**Exorbitant Fees** - Traditional remittance providers charge 5–10% per transaction. For a worker sending $200 home each month, that's $10–$20 lost to intermediaries every single time. Over a year, that's a significant portion of their earnings.
-
-**Slow Settlement** - International wire transfers take 3–5 business days to clear. When a family needs money for an emergency - a medical bill, school fees, a repair - waiting days is not an option.
-
-**Opaque Pricing** - Exchange rates are hidden in the spread. Users rarely know the true cost of their transfer until it's too late. There is no transparent, side-by-side comparison of what different providers actually charge.
+RemitX puts the whole flow on Stellar. Settlement takes seconds, routes are compared in real time across anchors, and the full cost is shown before the sender confirms. When a transfer needs extra safety, an on-chain escrow holds the funds with a fixed expiry, so money is never stuck in limbo.
 
 ---
 
-## Smart Contract System
+## How it works
 
-RemitX runs on a comprehensive multi-contract Soroban system. Each contract serves a specific purpose in the platform ecosystem:
+### 1. Transfer initiation
 
-### 1. Escrow Contract (`contracts/escrow/`)
-- **Purpose**: Holds remittance transfers in escrow until release conditions are met
-- **Functions**: `deposit()`, `release()`, `refund()`, `get_escrow()`, `get_escrow_count()`
-- **Status**: **Fully Implemented**
-- **Key Features**:
-  - Deterministic escrow ID generation
-  - Time-locked expiration
-  - Fee collection mechanism
-  - Event emissions for off-chain indexing
+The sender enters an amount and a recipient Stellar address. The app validates the input with Zod and the recipient key against Stellar's strkey format before anything touches the network.
 
-### 2. Exchange Contract (`contracts/exchange/`)
-- **Purpose**: On-chain currency exchange and path finding
-- **Functions**: `create_pair()`, `swap()`, `add_liquidity()`, `remove_liquidity()`, `get_rate()`
-- **Status**: **Fully Implemented**
-- **Key Features**:
-  - Constant product market maker (CPMM) model
-  - Multi-currency pair management
-  - Fee in basis points
-  - Liquidity pool management
+### 2. Route and rate discovery
 
-### 3. Staking Contract (`contracts/staking/`)
-- **Purpose**: Token staking and reward distribution
-- **Functions**: `stake()`, `unstake()`, `get_stake()`, `get_stake_count()`, `create_vesting_schedule()`
-- **Status**: **Fully Implemented**
-- **Key Features**:
-  - Minimum/maximum stake limits
-  - Reward period configuration
-  - Vesting schedule support
-  - Stake record management
+RemitX queries Stellar Horizon for liquidity paths and compares anchor fees and exchange rates for the chosen corridor. The best route and its full cost breakdown are shown up front. Rates are cached in the database to keep the UI fast.
 
-### 4. Governance Contract (`contracts/governance/`)
-- **Purpose**: Decentralized governance and protocol upgrades
-- **Functions**: `create_proposal()`, `vote()`, `execute()`, `get_proposal()`, `get_proposal_count()`
-- **Status**: **Fully Implemented**
-- **Key Features**:
-  - Multi-option voting
-  - Quorum and threshold requirements
-  - Proposal lifecycle management
-  - Voting weight tracking
+### 3. Confirmation
 
-### Contract Architecture Diagram
+The sender reviews the final amount, fees, rate and estimated arrival time, then confirms. No hidden spread.
+
+### 4. Escrow or direct send
+
+The sender chooses between two paths:
+
+- **Direct:** a Stellar path payment sends funds to the recipient in one step.
+- **Escrow:** the `Escrow` contract locks the funds on-chain with an expiry timestamp.
+
+### 5. Settlement
+
+For direct sends, the recipient receives funds in their asset via path payment, typically in under 5 seconds. For escrow, the platform authority calls `release()` before expiry to pay the recipient, minus the configured fee.
+
+### 6. Refund safety net
+
+If an escrow is never released and passes its expiry, the funds can be refunded to the sender. Nothing stays locked forever.
+
+### 7. Indexing and history
+
+Every state change emits an on-chain event. Transactions and escrows are tracked in Postgres so users get a full activity history with status updates.
+
+---
+
+## Supported corridors
+
+| Currency | Region | Role |
+|---|---|---|
+| NGN | Nigeria | Receiving and sending |
+| PHP | Philippines | Receiving |
+| GBP | United Kingdom | Sending |
+| USD | United States | Sending and settlement |
+
+Corridors are served through Stellar anchors and on-chain liquidity. Multi-asset support for every corridor pair is in progress (see the [roadmap](#roadmap)).
+
+---
+
+## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                    REMITX PLATFORM                          │
-├─────────────────────────────────────────────────────────────┤
-│  Frontend (40%)          │  Smart Contracts (60%)          │
-│  ┌──────────────────┐    │  ┌───────────────────────────┐  │
-│  │ Next.js 16       │    │  │ Escrow Contract           │  │
-│  │ TypeScript       │    │  │ - Escrow lifecycle        │  │
-│  │ Tailwind CSS     │    │  │ - Deposit/Release/Refund  │  │
-│  └──────────────────┘    │  ├───────────────────────────┤  │
-│  ┌──────────────────┐    │  │ Exchange Contract         │  │
-│  │ API Routes       │    │  │ - CPMM swaps              │  │
+┌──────────────────────────────────────────────────────────────────┐
+│                         RemitX Platform                          │
+│                                                                  │
+│  ┌──────────────────────┐        ┌───────────────────────────┐   │
+│  │  Next.js 16 frontend │        │  Soroban contracts        │   │
+│  │  TypeScript / Tailwind│       │                           │   │
+│  │                      │        │  ┌─────────────────────┐  │   │
+│  │  send · rates ·      │        │  │ Escrow              │  │   │
+│  │  routes · activity · │        │  │ deposit/release/    │  │   │
+│  │  anchors · review    │        │  │ refund              │  │   │
+│  └──────────┬───────────┘        │  ├─────────────────────┤  │   │
+│             │                    │  │ Exchange (CPMM)     │  │   │
+│  ┌──────────▼───────────┐        │  │ swap · liquidity    │  │   │
+│  │  API routes          │◄──────►│  ├─────────────────────┤  │   │
+│  │  /api/stellar/*      │        │  │ Staking             │  │   │
+│  │  /api/auth/*         │        │  │ stake · rewards     │  │   │
+│  │  /api/transactions   │        │  ├─────────────────────┤  │   │
+│  └──────────┬───────────┘        │  │ Governance          │  │   │
+│             │                    │  │ propose · vote      │  │   │
+│  ┌──────────▼───────────┐        │  └─────────────────────┘  │   │
+│  │  remitx-core (Rust)  │        └─────────────┬─────────────┘   │
+│  │  auth · jwt · rates  │                      │                 │
+│  │  anchors · security  │                      │                 │
+│  └──────────┬───────────┘                      │                 │
+│             │                                  │                 │
+│  ┌──────────▼───────────┐        ┌─────────────▼─────────────┐   │
+│  │  Supabase (Postgres) │        │  Stellar Network + Horizon│   │
+│  │  users · transactions│        │  path payments · anchors  │   │
+│  │  rates · escrows     │        └───────────────────────────┘   │
+│  └──────────────────────┘                                        │
+└──────────────────────────────────────────────────────────────────┘
+         ▲                                        ▼
+   Sender wallet                           Recipient wallet
+   (funds out)                             (funds in)
+```
 
+### Core components
 
----
+**`EscrowContract`** — Holds transfers on-chain until release or expiry. Generates deterministic escrow IDs, collects a configurable fee, supports partial release, and emits events for off-chain indexing.
 
-## User Roles
+**`ExchangeContract`** — Constant product market maker (CPMM) for currency pairs. Manages pair creation, liquidity pools, LP shares, swaps with slippage protection, and per-pair fees in basis points.
 
-- **Sender**: Initiates remittance, optionally locks funds in escrow
-- **Recipient**: Receives funds after escrow release or direct transfer
-- **Liquidity Provider**: Adds liquidity to exchange pairs, earns fees and rewards
-- **Staker**: Stakes tokens to earn rewards and participate in platform governance
-- **Delegate/Voter**: Creates proposals and votes on protocol changes
-- **Platform Admin**: Manages contract configurations, pairs, and parameters
+**`StakingContract`** — Token staking with an APR-based reward pool. Tracks stake positions, pending rewards and claims.
 
----
+**`GovernanceContract`** — Token-weighted proposals and voting with a quorum requirement, so protocol parameters can be changed by the community.
 
-## The Remit Loop
+**`remitx-core`** — A Rust crate compiled to native and WebAssembly. It holds the security-sensitive business logic shared with the frontend: password hashing, JWT handling, input validation, strkey checks, CSRF and reset tokens, Turnstile verification, and rate and anchor helpers.
 
-1. **Sender initiates transfer**: User enters amount and selects recipient
-2. **Rate estimation**: Platform queries the Exchange contract for best rates
-3. **Confirmation**: User confirms transaction details
-4. **Escrow or direct**: Funds optionally locked in Escrow contract for safety
-5. **Settlement**: Recipient receives funds via Stellar path payment
-6. **Confirmation**: Event emitted and indexed by off-chain services
-7. **Post-transfer**: User can claim fees, stake tokens, or vote on proposals
-
----
-
-## Security & Compliance
-
-- **Audited Smart Contracts**: All contracts compile with strict optimizations and overflow checks
-- **Deterministic Escrow System**: Cryptographic escrow IDs prevent manipulation
-- **Time-Locked Operations**: All time-based operations use ledger timestamp verification
-
-
----
-
-## Roadmap
-
-### Phase 1: Foundation ✅
-- [x] Database schema (Supabase)
-- [x] User authentication (bcrypt + JWT)
-- [x] Next.js frontend scaffold
-
-### Phase 2: Smart Contract System (Current)
-- [x] Escrow contract (complete)
-- [x] Exchange contract (complete)
-- [x] Staking contract (complete)
-- [x] Governance contract (complete)
-- [ ] Multi-asset support for all corridors
-
-### Phase 3: Integration
-- [ ] Backend API wiring to contracts
-- [ ] Path payment implementation
-- [ ] Rate fetching and caching
-
-### Phase 4: User Experience
-- [ ] KYC document upload flow
-- [ ] Transaction history
-- [ ] Staking dashboard
-- [ ] Voting interface
+**Next.js app and API routes** — The web interface and the backend layer for user accounts, rates, Stellar account lookups, and transaction submission, backed by Supabase Postgres through Prisma.
 
 ---
 
-## Setup
+## Routing and rates
+
+RemitX does not hardcode a single provider. For every transfer it:
+
+1. Queries Horizon for available liquidity paths between the source and destination asset.
+2. Compares anchor fees and exchange rates for the corridor.
+3. Surfaces the cheapest route with the full cost shown before confirmation.
+4. Caches recent rates in the `rates` table to avoid refetching on every page load.
+
+Relevant API routes live under `/api/stellar/` (`rate`, `routes`, `liquidity`, `send`, `submit`, `sign-and-submit`, `status`, `balance`, `account`) plus `/api/anchors` and `/api/public/rate`.
+
+---
+
+## Contract interface
+
+All contracts are written in Rust with the Soroban SDK, one per folder under `contracts/`.
+
+### Escrow
+
+```rust
+pub fn __constructor(
+    env: Env,
+    platform: Address,       // release authority
+    fee_treasury: Address,
+    fee_bps: u32,            // max 500 (5%)
+);
+
+pub fn deposit(
+    env: Env,
+    sender: Address,
+    recipient: Address,
+    amount: i128,
+    asset: Address,
+    expires_at: u64,
+) -> BytesN<32>;             // escrow_id
+
+pub fn release(env: Env, escrow_id: BytesN<32>, amount: Option<i128>) -> ReleaseResult;
+pub fn refund(env: Env, escrow_id: BytesN<32>, amount: Option<i128>);
+pub fn cancel(env: Env, escrow_id: BytesN<32>);
+pub fn extend_expiry(env: Env, escrow_id: BytesN<32>, new_expires_at: u64);
+
+pub fn get_escrow(env: Env, escrow_id: BytesN<32>) -> EscrowState;
+pub fn get_escrow_count(env: Env) -> u32;
+pub fn get_escrows_by_sender(env: Env, sender: Address) -> Vec<BytesN<32>>;
+pub fn get_escrows_by_recipient(env: Env, recipient: Address) -> Vec<BytesN<32>>;
+```
+
+Admin functions: `set_fee_bps`, `set_fee_treasury`, `set_paused`, with getters `get_fee_bps`, `get_fee_treasury`, `is_paused`.
+
+### Exchange
+
+```rust
+pub fn create_pair(env: Env, base: Address, quote: Address, fee_bps: u32) -> BytesN<32>;
+
+pub fn add_liquidity(
+    env: Env,
+    provider: Address,
+    pair_id: BytesN<32>,
+    base_amount: i128,
+    quote_amount: i128,
+    min_shares: i128,
+) -> i128;
+
+pub fn remove_liquidity( /* provider, pair_id, shares, min amounts */ ) -> RemoveLiquidityResult;
+
+pub fn swap(
+    env: Env,
+    sender: Address,
+    pair_id: BytesN<32>,
+    from_token: Address,
+    amount_in: i128,
+    min_amount_out: i128,    // slippage protection
+) -> SwapResult;
+
+pub fn get_rate(env: Env, base: Address, quote: Address) -> i128;
+pub fn get_pair(env: Env, pair_id: BytesN<32>) -> ExchangePair;
+pub fn get_pairs(env: Env) -> Vec<BytesN<32>>;
+pub fn get_shares(env: Env, pair_id: BytesN<32>, provider: Address) -> i128;
+```
+
+Admin functions: `pause_pair`, `unpause_pair`, `set_fee_treasury`, `set_protocol_fee_bps`.
+
+### Staking
+
+```rust
+pub fn __constructor(env: Env, admin: Address, token: Address);
+
+pub fn stake(env: Env, staker: Address, amount: i128) -> StakeResult;
+pub fn withdraw(env: Env, staker: Address, amount: i128) -> UnstakeResult;
+pub fn claim_rewards(env: Env, staker: Address) -> ClaimResult;
+
+pub fn get_stake(env: Env, staker: Address) -> StakePosition;
+pub fn get_total_staked(env: Env) -> i128;
+pub fn get_reward_pool(env: Env) -> i128;
+pub fn get_apr(env: Env) -> u32;
+```
+
+Admin functions: `set_apr`, `fund_rewards`, `set_paused`, `slash`.
+
+### Governance
+
+```rust
+pub fn __constructor(env: Env, admin: Address, token: Address, total_supply: i128);
+
+pub fn propose(
+    env: Env,
+    proposer: Address,
+    title: Symbol,
+    description: Bytes,
+    action_hash: BytesN<32>,
+    voting_period: u64,
+) -> u32;                    // proposal id
+
+pub fn vote(env: Env, voter: Address, id: u32, support: bool) -> VoteResult;
+pub fn execute(env: Env, id: u32) -> ExecuteResult;
+pub fn cancel(env: Env, caller: Address, id: u32);
+
+pub fn get_proposal(env: Env, id: u32) -> Proposal;
+pub fn get_status(env: Env, id: u32) -> ProposalStatus;
+pub fn has_voted(env: Env, id: u32, voter: Address) -> bool;
+pub fn get_voting_power(env: Env, voter: Address) -> i128;
+```
+
+Admin functions: `extend_voting`, `set_quorum`.
+
+### Key types
+
+```rust
+pub struct EscrowState {
+    pub sender: Address,
+    pub recipient: Address,
+    pub amount: i128,
+    pub asset: Address,
+    pub status: EscrowStatus,
+    pub created_at: u64,
+    pub expires_at: u64,
+    pub released_at: Option<u64>,
+    pub refunded_at: Option<u64>,
+    pub cancelled_at: Option<u64>,
+    pub fee_collected: i128,
+    pub release_count: u32,
+}
+
+pub enum EscrowStatus { Locked, Released, Refunded, Cancelled }
+
+pub struct ExchangePair {
+    pub base: Address,
+    pub quote: Address,
+    pub base_reserve: i128,
+    pub quote_reserve: i128,
+    pub total_shares: i128,
+    pub fee_bps: u32,
+    pub created_at: u64,
+    pub last_update: u64,
+    pub paused: bool,
+}
+
+pub struct StakePosition {
+    pub amount: i128,
+    pub pending_rewards: i128,
+    pub last_update: u64,
+    pub staked_at: u64,
+    pub last_reward_claim: u64,
+    pub total_rewards_claimed: i128,
+}
+
+pub enum ProposalStatus { Pending, Active, Passed, Rejected, Executed, Cancelled }
+```
+
+---
+
+## Escrow mechanics
+
+An escrow follows a simple lifecycle:
+
+```
+deposit() ──► Locked ──┬──► release()  ──► Released   (platform authority, before expiry)
+                       ├──► refund()   ──► Refunded   (back to sender, after expiry)
+                       └──► cancel()   ──► Cancelled
+```
+
+- **Deterministic IDs.** Each escrow ID is derived with SHA-256 on-chain, so IDs cannot be forged or collided.
+- **Time-locked.** `expires_at` must be in the future at deposit. All time checks use the ledger timestamp.
+- **Partial release.** `release()` accepts an optional `amount`. If it is less than the escrowed balance, the escrow stays `Locked` with the remainder intact.
+- **Fee on release.** A fee in basis points (capped at 500) is deducted and sent to the fee treasury.
+- **Pausable.** The platform can pause new activity in an emergency.
+
+---
+
+## Staking and governance
+
+**Staking.** Holders stake the platform token to earn rewards from a funded reward pool at a configurable APR (basis points). Stake positions track pending rewards and lifetime claims, and rewards can be claimed without unstaking.
+
+**Governance.** Token holders create proposals and vote yes or no, weighted by voting power. A proposal passes only if it meets the configured quorum (basis points of total supply). Passed proposals are executed on-chain, and each voter can vote once per proposal.
+
+---
+
+## Fee structure
+
+| Cost | Who pays | Amount |
+|---|---|---|
+| Stellar network fee | Sender | Fractions of a cent per transaction |
+| Escrow release fee | Deducted from escrowed amount | Configurable, `0`–`500` bps (default `0`) |
+| Swap fee | Swapper | Per-pair `fee_bps` |
+| Protocol swap fee | Swapper | Configurable `protocol_fee_bps` |
+| Anchor deposit/withdrawal fee | Sender or recipient | Set by each anchor, compared in the app before confirming |
+
+RemitX shows the total cost of every route before the sender confirms.
+
+---
+
+## Security model
+
+### What RemitX can do
+
+- Release escrowed funds to the named recipient, minus the configured fee
+- Refund escrowed funds to the original sender after expiry
+- Pause escrow and exchange pairs in an emergency
+
+### What RemitX cannot do
+
+- Release escrowed funds to anyone other than the recipient set at deposit
+- Charge an escrow fee above 5% (hard cap in the contract)
+- Release before a valid, unreleased escrow exists (state is checked on every call)
+- Move user funds without the user's authorization (`require_auth` on all user actions)
+
+### Application security
+
+- Passwords hashed with bcrypt, sessions via JWT in httpOnly cookies
+- CSRF tokens and signed password-reset tokens (HMAC-SHA256)
+- Cloudflare Turnstile on auth flows (see [CLOUDFLARE_TURNSTILE_SETUP.md](CLOUDFLARE_TURNSTILE_SETUP.md))
+- All API inputs validated with Zod, Stellar keys validated against strkey format
+- Prompt-injection detection and input sanitisation in `remitx-core`
+- Monetary amounts stored as strings in the database to avoid precision loss
+
+### Compliance
+
+KYC and AML hooks are handled by the backend API, with a `kycStatus` on every user (`pending`, `verified`, `rejected`). The document upload and verification flow is on the roadmap.
+
+### Audit status
+
+- [ ] Internal review: in progress
+- [ ] External smart contract audit: planned pre-mainnet
+- [ ] Bug bounty: planned post-audit
+
+The contracts compile with overflow checks and have unit tests, but they have **not** been externally audited. Do not use them with real funds yet.
+
+---
+
+## Tech stack
+
+| Layer | Technology |
+|---|---|
+| Smart contracts | Rust + Soroban SDK (escrow, exchange, staking, governance) |
+| Core logic | `remitx-core` Rust crate (native + WebAssembly) |
+| Frontend | Next.js 16, React 19, TypeScript, Tailwind CSS v4 |
+| API | Next.js route handlers, Zod validation |
+| Database | Supabase (PostgreSQL) via Prisma |
+| Auth | bcrypt + JWT (httpOnly cookies), Cloudflare Turnstile |
+| Blockchain | Stellar Network, Horizon, Soroban runtime, `@stellar/stellar-sdk` |
+
+---
+
+## Getting started
 
 ### Prerequisites
 
-- **Node.js 18+**
-- **Rust 1.97+** with `wasm32-unknown-unknown` target (for Soroban contracts)
-- **Soroban CLI** (optional, for deployment)
+- Node.js 18+
+- Rust 1.97+ with the `wasm32-unknown-unknown` target
+- Soroban CLI (optional, for deployment)
 
-### Clone and Install
+### Install
 
 ```bash
 git clone https://github.com/Northgate-Systems/RemitX.git
@@ -192,180 +431,123 @@ cd RemitX
 npm install
 ```
 
-### Environment Configuration
+### Configure
 
 ```bash
-# Copy the environment template
 cp .env.example .env
-
-# Edit .env with your configuration
-# Set STELLAR_NETWORK=testnet for testnet deployment
+# Fill in your values. Set STELLAR_NETWORK=testnet for testnet.
 ```
 
-### Build Contracts
+### Run the app
 
 ```bash
-# Install wasm32 target (if needed)
-rustup target add wasm32-unknown-unknown
+npm run dev
+```
 
-# Build all contracts
+### Build the contracts
+
+```bash
+rustup target add wasm32-unknown-unknown
 cd contracts
 cargo build --release
 ```
 
 ---
 
-## Running Tests
+## Running tests
 
 ```bash
-# TypeScript/Next.js tests
+# Frontend
 npm run lint
 npm run build
+
+# Contracts
+cd contracts/escrow     && cargo test
+cd contracts/exchange   && cargo test
+cd contracts/staking    && cargo test
+cd contracts/governance && cargo test
 ```
 
-### Soroban Contract Tests
+Before opening a PR, make sure the Rust code passes formatting and lint checks:
 
 ```bash
-# Escrow contract tests
-cd contracts/escrow
-cargo test
-
-# Exchange contract tests
-cd contracts/exchange
-cargo test
+cargo fmt --all -- --check
+cargo clippy --workspace -- -D warnings
 ```
 
-### Lint and Format Contracts
+---
 
-Before submitting a PR, ensure Rust contracts pass formatting and lint checks:
+## Roadmap
 
-```bash
-cargo fmt --all               # auto-format all contracts
-cargo fmt --all -- --check    # check formatting without modifying files
-cargo clippy --workspace -- -D warnings  # lint all contracts (warnings are errors)
-```
+### v0.1: Foundation
+- [x] Database schema (Supabase / Prisma)
+- [x] User authentication (bcrypt + JWT)
+- [x] Next.js frontend scaffold
+
+### v0.2: Smart contracts
+- [x] Escrow contract
+- [x] Exchange contract
+- [x] Staking contract
+- [x] Governance contract
+- [ ] Multi-asset support for all corridors
+
+### v0.3: Integration
+- [ ] Backend API wired to contracts
+- [ ] Path payment implementation
+- [ ] Live Horizon rate fetching with database caching
+
+### v0.4: User experience
+- [ ] KYC document upload and verification flow
+- [ ] Transaction history
+- [ ] Staking dashboard
+- [ ] Voting interface
+
+### v1.0: Mainnet
+- [ ] External security audit
+- [ ] Bug bounty program
+- [ ] Mainnet deployment
+- [ ] Live anchor integrations for NGN, PHP, GBP and USD
 
 ---
 
 ## Contributing
 
-RemitX is an open-source project and welcomes contributions from developers, designers, and community builders. If you believe in affordable, instant cross-border payments and want to help build the infrastructure for the next generation of global finance, we would love to have you.
+RemitX is open source and welcomes developers, designers and community builders. Start with [CONTRIBUTING.md](CONTRIBUTING.md) for the claim flow, expected turnaround, PR checklist and bounty notes.
 
-Start with [`CONTRIBUTING.md`](CONTRIBUTING.md) for the current claim flow, expected turnaround, PR checklist, and bounty/grant notes.
+```bash
+git clone https://github.com/<your-username>/RemitX.git
+cd RemitX
+git checkout -b feature/your-feature
+```
 
-### Getting Started
+### Guidelines
 
-1. **Fork** the repository
-2. **Clone** your fork: `git clone https://github.com/<your-username>/RemitX.git`
-3. **Create** a feature branch: `git checkout -b feature/amazing-feature`
-4. **Commit** your changes: `git commit -m 'feat: add amazing feature'`
-5. **Push** to the branch: `git push origin feature/amazing-feature`
-6. **Open** a Pull Request
-
-### Development Guidelines
-
-- **Rust** is preferred for all new smart contracts
-- **TypeScript** for all new code
+- Rust for all new smart contracts, TypeScript for all new app code
 - Follow the existing component and file structure
 - Run `npm run lint` before committing
-- Validate all API inputs with **Zod**
-- Test on both **desktop and mobile** viewports
-- Keep environment variables documented in `.env.example`
+- Validate all API inputs with Zod
+- Test on desktop and mobile viewports
+- Keep `.env.example` up to date
 
-### Looking for a place to start?
+### Where to start
 
-Use the current codebase and this README as the source of truth, then check [`FOUNDATION.md`](FOUNDATION.md) for the intentionally stubbed areas and the full list of `// TODO(contributor)` markers, including:
-
-- Real Stellar transaction building and submission
-- Live Horizon rate fetching with database caching
-- KYC document upload and verification flow
-- Soroban smart contract implementation
-- Wiring frontend pages to API routes
+Check [FOUNDATION.md](FOUNDATION.md) for the intentionally stubbed areas and the full list of `// TODO(contributor)` markers, including real Stellar transaction building, live Horizon rate fetching, KYC upload, and wiring frontend pages to the API routes.
 
 ---
 
 ## Resources
 
-- [FOUNDATION.md](FOUNDATION.md) - Foundation build summary and contributor TODOs
-- [contracts/escrow/README.md](contracts/escrow/README.md) - Soroban escrow contract documentation
-- [contracts/exchange/README.md](contracts/exchange/README.md) - Soroban exchange contract documentation
-- [contracts/staking/README.md](contracts/staking/README.md) - Soroban staking contract documentation
-- [contracts/governance/README.md](contracts/governance/README.md) - Soroban governance contract documentation
-- [CLOUDFLARE_TURNSTILE_SETUP.md](CLOUDFLARE_TURNSTILE_SETUP.md) - Step-by-step Cloudflare Turnstile setup guide
-- [.env.example](.env.example) - Environment variable template with setup instructions
-- [LICENSE](LICENSE) - MIT License
+- [FOUNDATION.md](FOUNDATION.md): foundation build summary and contributor TODOs
+- [contracts/escrow/README.md](contracts/escrow/README.md): escrow contract docs
+- [CLOUDFLARE_TURNSTILE_SETUP.md](CLOUDFLARE_TURNSTILE_SETUP.md): Turnstile setup guide
+- [.env.example](.env.example): environment variable template
 
 ---
 
-## Contact
+## License
 
-For partnerships, sponsorships, or general questions about RemitX, please reach out through our official channels.
-
-- **GitHub:** [github.com/Northgate-Systems/RemitX](https://github.com/Northgate-Systems/RemitX)
-- **Live Demo:** [remitx.app](https://remitx.app) _(coming soon)_
+MIT, see [LICENSE](./LICENSE).
 
 ---
 
-**RemitX - Moving money across borders, at the speed of light. Built on the Stellar Network with Rust-powered smart contracts. 🌟**
-- **Event Emits**: Comprehensive event logging for off-chain monitoring
-- **Multi-Sig Governance**: On-chain governance requires quorum and threshold validation
-- **Compliance**: KYC/AML hooks via backend API (Supabase-based)
-
----
-
-## Tech Stack
-
-| Layer | Technology | % of Codebase |
-|-------|-----------|---------------|
-| **Smart Contracts** | Rust + Soroban SDK | **~60%** |
-|  | Escrow Contract | |
-|  | Exchange Contract | |
-|  | Staking Contract | |
-|  | Governance Contract | |
-| **Frontend** | Next.js 16 + TypeScript + Tailwind v4 | ~40% |
-| **Database** | Supabase (PostgreSQL) | |
-| **Authentication** | bcrypt + JWT (httpOnly cookies) | |
-| **Infrastructure** | Stellar Network + Soroban | |
-| **Development** | Cargo + VS Code + Rust Analyzer | |
-
-│  │ bcrypt + JWT     │    │  │ - Liquidity pools         │  │
-│  └──────────────────┘    │  ├───────────────────────────┤  │
-│  ┌──────────────────┐    │  │ Staking Contract          │  │
-│  │ Supabase Client  │    │  │ - Stake/Unstake           │  │
-│  │ - Users          │    │  │ - Rewards                 │  │
-│  │ - Rates          │    │  │ - Vesting schedules       │  │
-│  └──────────────────┘    │  ├───────────────────────────┤  │
-│  ┌──────────────────┐    │  │ Governance Contract       │  │
-│  │ Stellar SDK      │    │  │ - Proposals               │  │
-│  │ - Transaction    │    │  │ - Voting                  │  │
-│  │   building       │    │  │ - Execution               │  │
-│  └──────────────────┘    │  └───────────────────────────┘  │
-│                          │                                   │
-│  Blockchain: Stellar     └───────────────────────────────────┘
-│  Network + Soroban Runtime
-└─────────────────────────────────────────────────────────────┘
-```
-
-
-RemitX addresses all three problems in a single, cohesive platform built on open, decentralized infrastructure.
-
----
-
-## Solution
-
-RemitX creates a three-pillar ecosystem:
-
-**1. Route** - RemitX queries the Stellar Horizon API for optimal liquidity paths, automatically finding the cheapest route for every transfer. The path payment protocol ensures funds flow through the most cost-effective sequence of as
-
----
-
-## Platform Architecture
-
-RemitX uses a **hybrid architecture** combining:
-
-- **Frontend (40%)**: Next.js 16 + TypeScript + Tailwind CSS for the web interface
-- **Smart Contracts (60%)**: A multi-contract Soroban system on Stellar for trustless settlement
-- **Backend API**: Next.js API routes + Supabase for user management and data persistence
-- **Blockchain**: Stellar Network + Soroban Runtime Environment
-
-The 60% Rust/Soroban composition ensures that the most security-critical and performance-sensitive operations (escrow, exchange, staking, governance) run on-chain, while the user interface and API logic remain in TypeScript for rapid development and iteration.
+*Built on [Stellar](https://stellar.org) and [Soroban](https://soroban.stellar.org).*
