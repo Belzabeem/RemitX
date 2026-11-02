@@ -167,7 +167,7 @@ impl GovernanceContract {
         if description.is_empty() || description.len() > 1024 {
             panic_with_error!(env, GovernanceError::InvalidDescription);
         }
-        if voting_period < MIN_VOTING_PERIOD || voting_period > MAX_VOTING_PERIOD {
+        if !(MIN_VOTING_PERIOD..=MAX_VOTING_PERIOD).contains(&voting_period) {
             panic_with_error!(env, GovernanceError::InvalidPeriod);
         }
         if Self::balance_of(&env, &proposer) <= 0 {

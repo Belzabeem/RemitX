@@ -118,18 +118,20 @@ pub enum DaoAction {
     AdminConfig,
 }
 
-impl ActionType {
-    pub fn from_str(s: &str) -> Option<ActionType> {
+impl core::str::FromStr for ActionType {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
-            "deposit" => Some(ActionType::Deposit),
-            "release" => Some(ActionType::Release),
-            "refund" => Some(ActionType::Refund),
-            "exchange" => Some(ActionType::Exchange),
-            "stake" => Some(ActionType::Stake),
-            "unstake" => Some(ActionType::Unstake),
-            "vote" => Some(ActionType::Vote),
-            "vote_cast" => Some(ActionType::VoteCast),
-            _ => None,
+            "deposit" => Ok(ActionType::Deposit),
+            "release" => Ok(ActionType::Release),
+            "refund" => Ok(ActionType::Refund),
+            "exchange" => Ok(ActionType::Exchange),
+            "stake" => Ok(ActionType::Stake),
+            "unstake" => Ok(ActionType::Unstake),
+            "vote" => Ok(ActionType::Vote),
+            "vote_cast" => Ok(ActionType::VoteCast),
+            _ => Err(()),
         }
     }
 }
