@@ -79,6 +79,7 @@ export async function POST(request: NextRequest) {
       status: "pending",
       stellarTxHash: null,
       escrowId: null,
+      confirmedAt: null,
     });
 
     return successResponse({
