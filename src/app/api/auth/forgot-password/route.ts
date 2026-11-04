@@ -26,7 +26,7 @@ export async function POST(request: NextRequest) {
     const user = await data.users.findByEmail(email);
 
     if (user) {
-      const { token, expiresAt } = generateResetToken(user.id);
+      const { expiresAt } = generateResetToken(user.id);
       logSecurityEvent("password_reset_request", { userId: user.id });
 
       // In production, send email with reset link. In dev, log without leaking passwords.
