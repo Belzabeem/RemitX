@@ -1,10 +1,9 @@
-import { supabase } from "@/lib/supabase";
+import { data } from "@/lib/data";
 import { getCurrentUser } from "@/lib/auth";
 import { successResponse, errorResponse, unauthorizedResponse } from "@/lib/api-response";
 import { transactionIdSchema } from "@/lib/validations";
-import type { Transaction } from "@/lib/types";
 
-// See note in src/app/api/health/route.ts — API routes must not pre-render.
+// API routes must not pre-render
 export const dynamic = "force-dynamic";
 
 export async function GET(
@@ -21,23 +20,12 @@ export async function GET(
 
   const { id } = parsed.data;
 
-  const { data: tx, error: txError } = await supabase
-    .from("transactions")
-    .select("*")
-    .eq("id", id)
-    .maybeSingle();
-
-  if (txError || !tx) return errorResponse("Transaction not found", 404);
-
-  if ((tx as Transaction).userId !== user.id) {
+  const tx = await data.transactions.findById(id);
+  if (!tx || tx.userId !== user.id) {
     return errorResponse("Transaction not found", 404);
   }
 
-  const { data: escrow } = await supabase
-    .from("escrows")
-    .select("*")
-    .eq("transactionId", (tx as Transaction).id)
-    .maybeSingle();
+  const escrow = await data.escrows.findByTransactionId(tx.id);
 
   return successResponse({ transaction: tx, escrow: escrow || null });
 }

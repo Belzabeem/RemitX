@@ -1,10 +1,9 @@
 import { NextRequest } from "next/server";
-import { supabase } from "@/lib/supabase";
+import { data } from "@/lib/data";
 import { hashPassword, signToken, setSessionCookie, toSafeUser } from "@/lib/auth";
 import { registerSchema } from "@/lib/validations";
 import { verifyTurnstileToken } from "@/lib/turnstile";
 import { successResponse, errorResponse } from "@/lib/api-response";
-import type { User } from "@/lib/types";
 import {
   rateLimit,
   sanitizeInput,
@@ -13,7 +12,7 @@ import {
   readBodyWithLimit,
 } from "@/lib/security";
 
-// See note in src/app/api/health/route.ts — API routes must not pre-render.
+// API routes must not pre-render
 export const dynamic = "force-dynamic";
 
 export async function POST(request: NextRequest) {
@@ -46,63 +45,45 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if user already exists
-    const { data: existing } = await supabase
-      .from("users")
-      .select("id")
-      .eq("email", cleanEmail)
-      .maybeSingle();
+    const existing = await data.users.findByEmail(cleanEmail);
     if (existing) {
       return errorResponse("Email already registered", 409);
     }
 
     const passwordHash = await hashPassword(password);
 
-    // Generate Stellar account
+    // Generate Stellar account if available
     let stellarPublicKey: string | null = null;
     try {
       const { createTestnetAccount } = await import("@/lib/stellar");
       const account = await createTestnetAccount();
       stellarPublicKey = account.publicKey;
-      // TODO(product): In production, return the secret key to the user once for safekeeping.
-      // Do NOT store it server-side. For testnet Dev UX we log it.
-      console.log(`[DEV] New user ${cleanEmail} Stellar secret: ${account.secretKey}`);
+      // Note: Secret keys must never be logged or stored on the server.
     } catch (err) {
       console.warn("Stellar account creation failed, continuing without one:", err);
     }
 
-    const { data: user, error } = await supabase
-      .from("users")
-      .insert({
-        firstName: cleanFirstName,
-        lastName: cleanLastName,
-        email: cleanEmail,
-        passwordHash,
-        stellarPublicKey,
-        // kycStatus, sessionVersion, failedLoginAttempts, lockedUntil
-        // all have DB defaults - don't insert them explicitly so the
-        // insert works even if the live table hasn't been migrated yet.
-      })
-      .select("*")
-      .single();
+    const user = await data.users.create({
+      firstName: cleanFirstName,
+      lastName: cleanLastName,
+      email: cleanEmail,
+      passwordHash,
+      stellarPublicKey,
+      kycStatus: "pending",
+      sessionVersion: 1,
+      failedLoginAttempts: 0,
+      lockedUntil: null,
+    });
 
-    if (error || !user) {
-      console.error("Registration insert error:", error);
-      return errorResponse("Internal server error", 500);
-    }
+    logSecurityEvent("register", { userId: user.id });
 
-    logSecurityEvent("register", { userId: (user as User).id });
-
-    const safeUser = toSafeUser(user as User);
+    const safeUser = toSafeUser(user);
     const token = signToken(safeUser, 1);
     await setSessionCookie(token);
 
     return successResponse({ user: safeUser }, 201);
   } catch (err) {
     console.error("Registration error:", err);
-    const message = err instanceof Error ? err.message : "";
-    if (message.includes("SUPABASE_SERVICE_ROLE_KEY") || message.includes("NEXT_PUBLIC_SUPABASE_URL")) {
-      return errorResponse("Database not configured. Add SUPABASE_SERVICE_ROLE_KEY and NEXT_PUBLIC_SUPABASE_URL to your .env file.", 500);
-    }
     return errorResponse("Internal server error", 500);
   }
 }

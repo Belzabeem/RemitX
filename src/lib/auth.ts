@@ -1,11 +1,12 @@
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { cookies } from "next/headers";
-import { supabase } from "./supabase";
-import type { User } from "./types";
+import { data } from "./data";
+import type { User } from "./data/types";
 import { logSecurityEvent } from "./security";
 
-const JWT_SECRET = process.env.JWT_SECRET || "dev-jwt-secret-change-in-production-min-32-chars-long";
+const JWT_SECRET =
+  process.env.JWT_SECRET || "dev-jwt-secret-change-in-production-min-32-chars-long";
 const SESSION_COOKIE = "remitx_session";
 const SALT_ROUNDS = 12;
 
@@ -17,7 +18,10 @@ export async function hashPassword(password: string): Promise<string> {
 }
 
 /** Compare a plaintext password against a hash */
-export async function verifyPassword(password: string, hash: string): Promise<boolean> {
+export async function verifyPassword(
+  password: string,
+  hash: string
+): Promise<boolean> {
   return bcrypt.compare(password, hash);
 }
 
@@ -31,9 +35,15 @@ export function signToken(user: SafeUser, sessionVersion = 1): string {
 }
 
 /** Verify and decode a JWT */
-export function verifyToken(token: string): { sub: string; email: string; sv: number } | null {
+export function verifyToken(
+  token: string
+): { sub: string; email: string; sv: number } | null {
   try {
-    const decoded = jwt.verify(token, JWT_SECRET) as { sub: string; email: string; sv?: number };
+    const decoded = jwt.verify(token, JWT_SECRET) as {
+      sub: string;
+      email: string;
+      sv?: number;
+    };
     return { sub: decoded.sub, email: decoded.email, sv: decoded.sv || 1 };
   } catch {
     return null;
@@ -73,23 +83,19 @@ export async function getCurrentUser(): Promise<SafeUser | null> {
   const payload = verifyToken(token);
   if (!payload) return null;
 
-  const { data: user, error } = await supabase
-    .from("users")
-    .select("*")
-    .eq("id", payload.sub)
-    .single();
-  if (error || !user) return null;
+  const user = await data.users.findById(payload.sub);
+  if (!user) return null;
 
   // Check session version - if password was changed, invalidate old sessions
-  // (column may not exist on old schema - default to 1)
-  const userRow = user as User;
-  const currentSessionVersion = (userRow as Record<string, unknown>).sessionVersion as number | undefined;
-  if (payload.sv !== (currentSessionVersion || 1)) {
-    logSecurityEvent("invalid_token", { userId: payload.sub, reason: "session_version_mismatch" });
+  if (payload.sv !== (user.sessionVersion || 1)) {
+    logSecurityEvent("invalid_token", {
+      userId: payload.sub,
+      reason: "session_version_mismatch",
+    });
     return null;
   }
 
-  const { passwordHash: _, ...safeUser } = userRow;
+  const { passwordHash: _, ...safeUser } = user;
   return safeUser;
 }
 

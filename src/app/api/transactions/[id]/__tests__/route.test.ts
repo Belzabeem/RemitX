@@ -1,12 +1,19 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-const { mockMaybeSingle, mockFrom } = vi.hoisted(() => ({
-  mockMaybeSingle: vi.fn(),
-  mockFrom: vi.fn(),
+const { mockTxFindById, mockEscrowFindByTxId } = vi.hoisted(() => ({
+  mockTxFindById: vi.fn(),
+  mockEscrowFindByTxId: vi.fn(),
 }));
 
-vi.mock("@/lib/supabase", () => ({
-  supabase: { from: mockFrom },
+vi.mock("@/lib/data", () => ({
+  data: {
+    transactions: {
+      findById: mockTxFindById,
+    },
+    escrows: {
+      findByTransactionId: mockEscrowFindByTxId,
+    },
+  },
 }));
 
 vi.mock("@/lib/auth", () => ({
@@ -19,19 +26,6 @@ import { getCurrentUser } from "@/lib/auth";
 const OWNER_ID = "550e8400-e29b-41d4-a716-446655440000";
 const TX_ID = "660e8400-e29b-41d4-a716-446655440000";
 
-function makeChain() {
-  const selectMock = vi.fn();
-  const eqMock = vi.fn();
-  const chain: Record<string, unknown> = {
-    select: selectMock,
-    eq: eqMock,
-    maybeSingle: mockMaybeSingle,
-  };
-  selectMock.mockReturnValue(chain);
-  eqMock.mockReturnValue(chain);
-  return chain;
-}
-
 function makeRequest(id = TX_ID) {
   return new Request(`http://localhost/api/transactions/${id}`);
 }
@@ -41,21 +35,19 @@ function makeParams(id: string) {
 }
 
 function fakeUser(id = OWNER_ID) {
-  // Must satisfy SafeUser (Omit<User, "passwordHash">) — getCurrentUser's
-  // mocked return type is checked by tsc, so every required field is needed.
   return {
     id,
     email: `${id}@example.com`,
     firstName: "Test",
     lastName: "User",
     stellarPublicKey: null,
-    kycStatus: "pending",
+    kycStatus: "pending" as const,
     sessionVersion: 1,
     failedLoginAttempts: 0,
     lockedUntil: null,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
-  } as const;
+  };
 }
 
 function fakeTx(userId = OWNER_ID) {
@@ -67,16 +59,20 @@ function fakeTx(userId = OWNER_ID) {
     fromAmount: "100",
     toAmount: "50",
     recipientAddress: "GABC123",
-    status: "confirmed",
+    stellarTxHash: null,
+    escrowId: null,
+    status: "confirmed" as const,
     createdAt: new Date().toISOString(),
+    confirmedAt: null,
+    updatedAt: new Date().toISOString(),
   };
 }
 
 describe("GET /api/transactions/[id]", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockMaybeSingle.mockReset();
-    mockFrom.mockImplementation(() => makeChain());
+    mockTxFindById.mockReset();
+    mockEscrowFindByTxId.mockReset();
   });
 
   it("returns 401 when not authenticated", async () => {
@@ -95,16 +91,14 @@ describe("GET /api/transactions/[id]", () => {
 
   it("returns 404 when transaction does not exist", async () => {
     vi.mocked(getCurrentUser).mockResolvedValue(fakeUser());
-    mockMaybeSingle.mockResolvedValue({ data: null, error: null });
+    mockTxFindById.mockResolvedValue(null);
     const res = await GET(makeRequest(TX_ID), makeParams(TX_ID));
     expect(res.status).toBe(404);
   });
 
   it("returns 404 when transaction belongs to another user (IDOR prevention)", async () => {
     vi.mocked(getCurrentUser).mockResolvedValue(fakeUser(OWNER_ID));
-    mockMaybeSingle
-      .mockResolvedValueOnce({ data: fakeTx("other-user"), error: null })
-      .mockResolvedValueOnce({ data: null, error: null });
+    mockTxFindById.mockResolvedValue(fakeTx("other-user"));
 
     const res = await GET(makeRequest(TX_ID), makeParams(TX_ID));
     expect(res.status).toBe(404);
@@ -115,11 +109,25 @@ describe("GET /api/transactions/[id]", () => {
   it("returns 200 with transaction and escrow data when owner matches", async () => {
     vi.mocked(getCurrentUser).mockResolvedValue(fakeUser(OWNER_ID));
     const tx = fakeTx(OWNER_ID);
-    const escrow = { id: "esc-1", transactionId: TX_ID, userId: OWNER_ID, status: "locked" };
+    const escrow = {
+      id: "esc-1",
+      transactionId: TX_ID,
+      userId: OWNER_ID,
+      contractAddress: "CADDR",
+      senderAddress: "SADDR",
+      recipientAddress: "RADDR",
+      amount: "100",
+      asset: "USDC",
+      status: "locked" as const,
+      depositTxHash: null,
+      releaseTxHash: null,
+      createdAt: new Date().toISOString(),
+      expiresAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
 
-    mockMaybeSingle
-      .mockResolvedValueOnce({ data: tx, error: null })
-      .mockResolvedValueOnce({ data: escrow, error: null });
+    mockTxFindById.mockResolvedValue(tx);
+    mockEscrowFindByTxId.mockResolvedValue(escrow);
 
     const res = await GET(makeRequest(TX_ID), makeParams(TX_ID));
     expect(res.status).toBe(200);
@@ -131,9 +139,8 @@ describe("GET /api/transactions/[id]", () => {
 
   it("returns 200 with null escrow when no escrow exists", async () => {
     vi.mocked(getCurrentUser).mockResolvedValue(fakeUser(OWNER_ID));
-    mockMaybeSingle
-      .mockResolvedValueOnce({ data: fakeTx(OWNER_ID), error: null })
-      .mockResolvedValueOnce({ data: null, error: null });
+    mockTxFindById.mockResolvedValue(fakeTx(OWNER_ID));
+    mockEscrowFindByTxId.mockResolvedValue(null);
 
     const res = await GET(makeRequest(TX_ID), makeParams(TX_ID));
     expect(res.status).toBe(200);

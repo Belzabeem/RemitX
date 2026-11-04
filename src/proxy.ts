@@ -19,6 +19,7 @@ const publicPathPrefixes = [
   "/sitemap.xml",
   "/api/auth/login",
   "/api/auth/register",
+  "/api/auth/demo",
   "/api/auth/forgot-password",
   "/api/auth/reset-password",
   "/api/public/",

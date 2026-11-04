@@ -1,10 +1,9 @@
 import { NextRequest } from "next/server";
-import { supabase } from "@/lib/supabase";
+import { data } from "@/lib/data";
 import { verifyPassword, signToken, setSessionCookie, toSafeUser } from "@/lib/auth";
 import { loginSchema } from "@/lib/validations";
 import { verifyTurnstileToken } from "@/lib/turnstile";
 import { successResponse, errorResponse } from "@/lib/api-response";
-import type { User } from "@/lib/types";
 import {
   rateLimit,
   checkAccountLockout,
@@ -15,7 +14,7 @@ import {
   readBodyWithLimit,
 } from "@/lib/security";
 
-// See note in src/app/api/health/route.ts — API routes must not pre-render.
+// API routes must not pre-render
 export const dynamic = "force-dynamic";
 
 export async function POST(request: NextRequest) {
@@ -53,49 +52,38 @@ export async function POST(request: NextRequest) {
       return errorResponse(`Verification failed: ${turnstile.reason}`, 400);
     }
 
-    const { data: user, error } = await supabase
-      .from("users")
-      .select("*")
-      .eq("email", normalizedEmail)
-      .maybeSingle();
+    const user = await data.users.findByEmail(normalizedEmail);
 
     // Prevent user enumeration - same error for user not found and wrong password
-    if (error || !user) {
+    if (!user) {
       recordFailedLogin(normalizedEmail);
       logSecurityEvent("login_failed", { email: normalizedEmail, reason: "user_not_found" });
       return errorResponse("Invalid email or password", 401);
     }
 
-    const valid = await verifyPassword(password, (user as User).passwordHash);
+    const valid = await verifyPassword(password, user.passwordHash);
     if (!valid) {
       recordFailedLogin(normalizedEmail);
       logSecurityEvent("login_failed", { email: normalizedEmail, reason: "wrong_password" });
       return errorResponse("Invalid email or password", 401);
     }
 
-    // Check if account is locked in DB (column may not exist on old schema)
-    const userRow = user as User;
-    const lockedUntil = (userRow as Record<string, unknown>).lockedUntil as string | null | undefined;
-    if (lockedUntil && new Date(lockedUntil) > new Date()) {
+    // Check if account is locked
+    if (user.lockedUntil && new Date(user.lockedUntil) > new Date()) {
       return errorResponse("Account temporarily locked. Try again later.", 429);
     }
 
     // Success - reset attempts and log
     resetLoginAttempts(normalizedEmail);
-    logSecurityEvent("login_success", { userId: userRow.id });
+    logSecurityEvent("login_success", { userId: user.id });
 
-    const safeUser = toSafeUser(userRow);
-    const sessionVersion = (userRow as Record<string, unknown>).sessionVersion as number | undefined;
-    const token = signToken(safeUser, sessionVersion || 1);
+    const safeUser = toSafeUser(user);
+    const token = signToken(safeUser, user.sessionVersion || 1);
     await setSessionCookie(token);
 
     return successResponse({ user: safeUser });
   } catch (err) {
     console.error("Login error:", err);
-    const message = err instanceof Error ? err.message : "";
-    if (message.includes("SUPABASE_SERVICE_ROLE_KEY") || message.includes("NEXT_PUBLIC_SUPABASE_URL")) {
-      return errorResponse("Database not configured. Add SUPABASE_SERVICE_ROLE_KEY and NEXT_PUBLIC_SUPABASE_URL to your .env file.", 500);
-    }
     return errorResponse("Internal server error", 500);
   }
 }

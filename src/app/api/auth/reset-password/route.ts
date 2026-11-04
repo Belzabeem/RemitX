@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { supabase } from "@/lib/supabase";
+import { data } from "@/lib/data";
 import { hashPassword } from "@/lib/auth";
 import { successResponse, errorResponse } from "@/lib/api-response";
 import {
@@ -9,7 +9,7 @@ import {
   readBodyWithLimit,
 } from "@/lib/security";
 
-// See note in src/app/api/health/route.ts — API routes must not pre-render.
+// API routes must not pre-render
 export const dynamic = "force-dynamic";
 
 export async function POST(request: NextRequest) {
@@ -36,40 +36,24 @@ export async function POST(request: NextRequest) {
     }
 
     // Fetch existing user to increment session version
-    const { data: existingUser } = await supabase
-      .from("users")
-      .select("sessionVersion")
-      .eq("id", resetData.userId)
-      .maybeSingle();
+    const existingUser = await data.users.findById(resetData.userId);
+    if (!existingUser) {
+      return errorResponse("User not found", 404);
+    }
 
-    const nextSessionVersion = ((existingUser as { sessionVersion?: number } | null)?.sessionVersion ?? 1) + 1;
-
-    // Hash the new password
+    const nextSessionVersion = (existingUser.sessionVersion ?? 1) + 1;
     const passwordHash = await hashPassword(newPassword);
 
-    // Update password and increment session version to invalidate all existing sessions
-    const { data: user, error } = await supabase
-      .from("users")
-      .update({
-        passwordHash,
-        sessionVersion: nextSessionVersion,
-        failedLoginAttempts: 0,
-        lockedUntil: null,
-      })
-      .eq("id", resetData.userId)
-      .select("id")
-      .single();
-
-    if (error || !user) {
-      console.error("Password reset update error:", error);
-      return errorResponse("Failed to reset password", 500);
-    }
+    await data.users.update(resetData.userId, {
+      passwordHash,
+      sessionVersion: nextSessionVersion,
+      failedLoginAttempts: 0,
+      lockedUntil: null,
+    });
 
     logSecurityEvent("password_reset_complete", { userId: resetData.userId });
 
-    return successResponse({
-      message: "Password reset successfully. Please sign in with your new password.",
-    });
+    return successResponse({ message: "Password reset successful. Please log in with your new password." });
   } catch (err) {
     console.error("Reset password error:", err);
     return errorResponse("Internal server error", 500);

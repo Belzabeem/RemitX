@@ -1,22 +1,11 @@
 import { NextRequest } from "next/server";
 import { Keypair, TransactionBuilder } from "@stellar/stellar-sdk";
-import { supabase } from "@/lib/supabase";
+import { data } from "@/lib/data";
 import { getCurrentUser } from "@/lib/auth";
 import { submitTransaction, NETWORK_PASSPHRASE } from "@/lib/stellar";
 import { successResponse, errorResponse, unauthorizedResponse } from "@/lib/api-response";
-import type { Transaction } from "@/lib/types";
 
-// ---------------------------------------------------------------------------
-// Testnet-only convenience endpoint: signs server-side with a secret key
-// supplied in the request body, so the demo works without a browser wallet
-// extension (e.g. Freighter). The secret key is used in-memory for this
-// request only and is never stored or logged.
-//
-// Do NOT use this pattern on mainnet or with real funds - swap in a browser
-// wallet extension for signing before going to production.
-// ---------------------------------------------------------------------------
-
-// See note in src/app/api/health/route.ts — API routes must not pre-render.
+// API routes must not pre-render
 export const dynamic = "force-dynamic";
 
 export async function POST(request: NextRequest) {
@@ -37,14 +26,8 @@ export async function POST(request: NextRequest) {
       return errorResponse("transactionId, xdr, and secretKey are all required", 400);
     }
 
-    const { data: tx, error: txError } = await supabase
-      .from("transactions")
-      .select("*")
-      .eq("id", transactionId)
-      .maybeSingle();
-
-    if (txError || !tx) return errorResponse("Transaction not found", 404);
-    const existing = tx as Transaction;
+    const existing = await data.transactions.findById(transactionId);
+    if (!existing) return errorResponse("Transaction not found", 404);
     if (existing.userId !== user.id) return unauthorizedResponse();
     if (existing.status !== "pending") {
       return errorResponse(`Transaction is already in status: ${existing.status}`, 400);
@@ -63,34 +46,24 @@ export async function POST(request: NextRequest) {
     const transaction = TransactionBuilder.fromXDR(xdr, NETWORK_PASSPHRASE);
     transaction.sign(keypair);
 
-    await supabase
-      .from("transactions")
-      .update({ status: "validating" })
-      .eq("id", transactionId);
+    await data.transactions.update(transactionId, { status: "validating" });
 
     const result = await submitTransaction(transaction.toXDR());
 
-    const { data: updated, error: updateError } = await supabase
-      .from("transactions")
-      .update({
-        status: result.status === "confirmed" ? "confirmed" : "failed",
-        stellarTxHash: result.hash || null,
-        confirmedAt: result.status === "confirmed" ? new Date().toISOString() : null,
-      })
-      .eq("id", transactionId)
-      .select("*")
-      .single();
+    const updated = await data.transactions.update(transactionId, {
+      status: result.status === "confirmed" ? "confirmed" : "failed",
+      stellarTxHash: result.hash || null,
+      confirmedAt: result.status === "confirmed" ? new Date().toISOString() : null,
+    });
 
-    if (updateError || !updated) {
-      console.error("Sign-and-submit update error:", updateError);
+    if (!updated) {
       return errorResponse("Failed to update transaction status", 500);
     }
 
-    const finalTx = updated as Transaction;
     return successResponse({
-      transactionId: finalTx.id,
-      status: finalTx.status,
-      stellarTxHash: finalTx.stellarTxHash,
+      transactionId: updated.id,
+      status: updated.status,
+      stellarTxHash: updated.stellarTxHash,
       resultCode: result.resultCode,
     });
   } catch (err: unknown) {

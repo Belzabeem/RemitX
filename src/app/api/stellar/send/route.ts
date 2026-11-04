@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { supabase } from "@/lib/supabase";
+import { data } from "@/lib/data";
 import { getCurrentUser } from "@/lib/auth";
 import { buildSendTransaction, fetchRate } from "@/lib/stellar";
 import { stellarSendSchema } from "@/lib/validations";
@@ -12,7 +12,7 @@ import {
   readBodyWithLimit,
 } from "@/lib/security";
 
-// See note in src/app/api/health/route.ts — API routes must not pre-render.
+// API routes must not pre-render
 export const dynamic = "force-dynamic";
 
 export async function POST(request: NextRequest) {
@@ -69,24 +69,17 @@ export async function POST(request: NextRequest) {
       recipientAddress: cleanRecipient,
     });
 
-    const { data: transaction, error } = await supabase
-      .from("transactions")
-      .insert({
-        userId: user.id,
-        fromAsset: fromAsset.toUpperCase(),
-        toAsset: toAsset.toUpperCase(),
-        fromAmount: amount,
-        toAmount,
-        recipientAddress: cleanRecipient,
-        status: "pending",
-      })
-      .select("id")
-      .single();
-
-    if (error || !transaction) {
-      console.error("Transaction insert error:", error);
-      return errorResponse("Failed to record transaction", 500);
-    }
+    const transaction = await data.transactions.create({
+      userId: user.id,
+      fromAsset: fromAsset.toUpperCase(),
+      toAsset: toAsset.toUpperCase(),
+      fromAmount: amount,
+      toAmount,
+      recipientAddress: cleanRecipient,
+      status: "pending",
+      stellarTxHash: null,
+      escrowId: null,
+    });
 
     return successResponse({
       transactionId: transaction.id,
@@ -98,14 +91,7 @@ export async function POST(request: NextRequest) {
       recipientAddress: cleanRecipient,
     }, 201);
   } catch (err: unknown) {
-    console.error("Send error:", err);
-    const message = err instanceof Error ? err.message : "Unknown error";
-    if (message.includes("Invalid recipient")) {
-      return errorResponse(message, 400);
-    }
-    if (message.includes("Request body too large")) {
-      return errorResponse("Request body too large", 413);
-    }
-    return errorResponse(message || "Failed to build transaction", 500);
+    console.error("Send transaction error:", err);
+    return errorResponse(err instanceof Error ? err.message : "Failed to build transaction", 500);
   }
 }

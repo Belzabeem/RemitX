@@ -1,9 +1,9 @@
-import { supabase } from "@/lib/supabase";
+import { data } from "@/lib/data";
 import { getCurrentUser } from "@/lib/auth";
 import { createTestnetAccount } from "@/lib/stellar";
 import { successResponse, errorResponse, unauthorizedResponse } from "@/lib/api-response";
 
-// See note in src/app/api/health/route.ts — API routes must not pre-render.
+// API routes must not pre-render
 export const dynamic = "force-dynamic";
 
 export async function POST() {
@@ -19,19 +19,15 @@ export async function POST() {
 
     const account = await createTestnetAccount();
 
-    const { error } = await supabase
-      .from("users")
-      .update({ stellarPublicKey: account.publicKey })
-      .eq("id", user.id);
+    const updated = await data.users.update(user.id, {
+      stellarPublicKey: account.publicKey,
+    });
 
-    if (error) {
-      console.error("Account update error:", error);
+    if (!updated) {
       return errorResponse("Failed to save Stellar account", 500);
     }
 
-    // The secret key is returned exactly once, here, and never stored
-    // server-side. If the user loses it, this testnet account is gone -
-    // that's the correct tradeoff for a non-custodial wallet, even in dev.
+    // The secret key is returned exactly once, here, and never stored server-side.
     return successResponse(
       {
         publicKey: account.publicKey,

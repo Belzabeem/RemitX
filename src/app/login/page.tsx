@@ -20,6 +20,7 @@ export default function LoginPage() {
   const [turnstileToken, setTurnstileToken] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [demoLoading, setDemoLoading] = useState(false);
 
   const strength = getPasswordStrength(password);
   const passwordsMatch = password === confirmPassword;
@@ -78,6 +79,24 @@ export default function LoginPage() {
       setTurnstileToken("");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleDemoLogin() {
+    setError("");
+    setDemoLoading(true);
+    try {
+      const res = await fetch("/api/auth/demo-login", { method: "POST" });
+      const data = await res.json();
+      if (!data.success) {
+        setError(data.error || "Demo login failed");
+        return;
+      }
+      router.push("/dashboard");
+    } catch {
+      setError("Network error. Please try again.");
+    } finally {
+      setDemoLoading(false);
     }
   }
 
@@ -238,6 +257,17 @@ export default function LoginPage() {
               {error}
             </p>
           )}
+          <button
+            type="button"
+            onClick={handleDemoLogin}
+            disabled={demoLoading || loading}
+            className="w-full py-2.5 border border-primary/30 text-primary rounded-full font-semibold text-sm hover:bg-primary/5 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {demoLoading ? "Loading demo..." : "Continue as Demo (Alice)"}
+          </button>
+          <p className="text-center text-[11px] text-neutral-400">
+            Demo credentials: alice@remitx.dev / Password123!
+          </p>
 
           <button
             type="submit"

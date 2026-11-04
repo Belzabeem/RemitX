@@ -1,9 +1,9 @@
 import { NextRequest } from "next/server";
-import { supabase } from "@/lib/supabase";
+import { data } from "@/lib/data";
 import { getCurrentUser } from "@/lib/auth";
 import { successResponse, errorResponse, unauthorizedResponse } from "@/lib/api-response";
 
-// See note in src/app/api/health/route.ts — API routes must not pre-render.
+// API routes must not pre-render
 export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
@@ -14,24 +14,17 @@ export async function GET(request: NextRequest) {
     }
 
     const { searchParams } = new URL(request.url);
-    const limit = Math.min(parseInt(searchParams.get("limit") || "50"), 100);
-    const offset = parseInt(searchParams.get("offset") || "0");
+    const limit = Math.min(parseInt(searchParams.get("limit") || "50", 10), 100);
+    const offset = parseInt(searchParams.get("offset") || "0", 10);
 
-    const { data: transactions, error, count } = await supabase
-      .from("transactions")
-      .select("*", { count: "exact" })
-      .eq("userId", user.id)
-      .order("createdAt", { ascending: false })
-      .range(offset, offset + limit - 1);
-
-    if (error) {
-      console.error("Transactions fetch error:", error);
-      return errorResponse("Failed to fetch transactions", 500);
-    }
+    const { transactions, total } = await data.transactions.findByUserId(user.id, {
+      limit,
+      offset,
+    });
 
     return successResponse({
-      transactions: transactions || [],
-      total: count ?? 0,
+      transactions,
+      total,
       limit,
       offset,
     });
