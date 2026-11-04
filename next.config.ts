@@ -20,7 +20,7 @@ const securityHeaders = [
       // Allow Google Fonts woff2 + Turnstile font assets
       "font-src 'self' https://fonts.gstatic.com data: https://challenges.cloudflare.com",
       // Allow our images + Turnstile injected pixel/favicon
-      "img-src 'self' data: blob: https://challenges.cloudflare.com",
+      "img-src 'self' data: blob: https://challenges.cloudflare.com https://images.higgs.ai https://d8j0ntlcm91z4.cloudfront.net",
       // Turnstile connects to challenges.cloudflare.com for widget + validation
       "connect-src 'self' https://horizon-testnet.stellar.org https://api.stellar.org https://challenges.cloudflare.com",
       // Turnstile renders in an iframe hosted on challenges.cloudflare.com

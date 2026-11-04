@@ -36,9 +36,9 @@ interface EscrowDetail {
 }
 
 const STATUS_STYLE: Record<TransactionDetail["status"], string> = {
-  pending: "bg-gray-100 text-gray-600",
+  pending: "bg-neutral-100 text-neutral-600",
   validating: "bg-amber-50 text-amber-700",
-  confirmed: "bg-emerald-50 text-emerald-700",
+  confirmed: "bg-neutral-100 text-neutral-800",
   failed: "bg-red-50 text-red-700",
 };
 
@@ -89,10 +89,10 @@ export default function TransactionDetailPage() {
 
   if (loading) {
     return (
-      <main className="min-h-screen bg-gray-50/50 p-6">
+      <main className="min-h-screen bg-neutral-50/50 p-6">
         <div className="max-w-3xl mx-auto space-y-3">
-          <div className="h-6 w-48 bg-gray-200 rounded animate-pulse" />
-          <div className="h-40 bg-white border border-gray-200 rounded-xl animate-pulse" />
+          <div className="h-6 w-48 bg-neutral-200 rounded animate-pulse" />
+          <div className="h-40 bg-white border border-neutral-200 rounded-xl animate-pulse" />
         </div>
       </main>
     );
@@ -100,8 +100,8 @@ export default function TransactionDetailPage() {
 
   if (error || !tx) {
     return (
-      <main className="min-h-screen bg-gray-50/50 flex items-center justify-center">
-        <p className="text-sm text-gray-500">
+      <main className="min-h-screen bg-neutral-50/50 flex items-center justify-center">
+        <p className="text-sm text-neutral-500">
           {error || "Transaction not found."} <Link href="/activity" className="text-primary font-semibold">Back to Activity</Link>
         </p>
       </main>
@@ -111,49 +111,49 @@ export default function TransactionDetailPage() {
   const EscrowIcon = escrow ? ESCROW_ICON[escrow.status] : null;
 
   return (
-    <main className="min-h-screen bg-gray-50/50">
+    <main className="min-h-screen bg-neutral-50/50">
       <div className="max-w-3xl mx-auto px-4 lg:px-6 py-6 lg:py-8 space-y-4">
-        <nav className="flex items-center gap-1.5 text-xs text-gray-400 font-semibold">
+        <nav className="flex items-center gap-1.5 text-xs text-neutral-400 font-semibold">
           <Link href="/activity" className="hover:text-primary transition-colors">Activity</Link>
           <ChevronRight size={14} />
-          <span className="text-primary font-bold">{tx.id}</span>
+          <span className="text-primary font-semibold">{tx.id}</span>
         </nav>
 
-        <div className="bg-white rounded-xl shadow-sm p-5 lg:p-6 border border-gray-200">
+        <div className="bg-white rounded-2xl p-5 lg:p-6 border border-black/5">
           <div className="flex justify-between items-start mb-4">
             <div>
-              <p className="text-[10px] text-gray-400 uppercase font-bold mb-1">Transaction</p>
-              <h2 className="text-xl font-bold text-gray-800">
+              <p className="text-[10px] text-neutral-400 uppercase font-semibold mb-1">Transaction</p>
+              <h2 className="text-xl font-medium tracking-[-0.03em] text-primary">
                 {tx.fromAmount} {tx.fromAsset} → {tx.toAmount ?? "?"} {tx.toAsset}
               </h2>
             </div>
-            <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase ${STATUS_STYLE[tx.status]}`}>
+            <span className={`px-2.5 py-1 rounded-full text-[10px] font-semibold uppercase ${STATUS_STYLE[tx.status]}`}>
               {tx.status}
             </span>
           </div>
 
-          <div className="space-y-3 py-4 border-t border-gray-100">
+          <div className="space-y-3 py-4 border-t border-neutral-100">
             <div className="flex justify-between items-center text-sm">
-              <span className="text-gray-500">Recipient</span>
-              <code className="text-xs text-gray-700 break-all text-right">{tx.recipientAddress}</code>
+              <span className="text-neutral-500">Recipient</span>
+              <code className="text-xs text-neutral-700 break-all text-right">{tx.recipientAddress}</code>
             </div>
             <div className="flex justify-between items-center text-sm">
-              <span className="text-gray-500">Created</span>
-              <span className="font-semibold text-gray-800">{new Date(tx.createdAt).toLocaleString()}</span>
+              <span className="text-neutral-500">Created</span>
+              <span className="font-semibold text-neutral-800">{new Date(tx.createdAt).toLocaleString()}</span>
             </div>
             {tx.confirmedAt && (
               <div className="flex justify-between items-center text-sm">
-                <span className="text-gray-500">Confirmed</span>
-                <span className="font-semibold text-gray-800">{new Date(tx.confirmedAt).toLocaleString()}</span>
+                <span className="text-neutral-500">Confirmed</span>
+                <span className="font-semibold text-neutral-800">{new Date(tx.confirmedAt).toLocaleString()}</span>
               </div>
             )}
             {tx.stellarTxHash && (
               <div className="flex justify-between items-center text-sm">
-                <span className="text-gray-500">Stellar tx hash</span>
+                <span className="text-neutral-500">Stellar tx hash</span>
                 <button onClick={copyHash} className="flex items-center gap-1.5 text-primary font-semibold text-xs">
                   <Link2 size={13} />
                   <span className="truncate max-w-[160px]">{tx.stellarTxHash}</span>
-                  {copied ? <Check size={13} className="text-emerald-600" /> : <Copy size={13} />}
+                  {copied ? <Check size={13} className="text-neutral-900" /> : <Copy size={13} />}
                 </button>
               </div>
             )}
@@ -161,20 +161,20 @@ export default function TransactionDetailPage() {
         </div>
 
         {escrow && EscrowIcon && (
-          <div className="bg-white rounded-xl shadow-sm p-5 border border-gray-200">
+          <div className="bg-white rounded-2xl p-5 border border-black/5">
             <div className="flex items-center justify-between mb-3">
-              <h3 className="text-sm font-bold text-gray-800">Escrow status</h3>
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase bg-indigo-50 text-indigo-700">
+              <h3 className="text-sm font-semibold text-neutral-800">Escrow status</h3>
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-semibold uppercase bg-neutral-100 text-neutral-800">
                 <EscrowIcon size={12} /> {escrow.status}
               </span>
             </div>
-            <p className="text-xs text-gray-500 mb-3">
+            <p className="text-xs text-neutral-500 mb-3">
               {escrow.amount} {escrow.asset} held in the Soroban escrow contract, expires {new Date(escrow.expiresAt).toLocaleString()}.
             </p>
             <button
               disabled
               title="Escrow release authorization isn't implemented yet - see contracts/escrow/README.md"
-              className="w-full py-2.5 rounded-xl text-xs font-bold bg-gray-100 text-gray-400 cursor-not-allowed"
+              className="w-full py-2.5 rounded-xl text-xs font-semibold bg-neutral-100 text-neutral-400 cursor-not-allowed"
             >
               Release (pending authorization design)
             </button>

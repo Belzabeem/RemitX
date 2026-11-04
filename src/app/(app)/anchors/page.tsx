@@ -79,17 +79,17 @@ export default function AnchorsPage() {
   };
 
   return (
-    <main className="min-h-screen bg-gray-50/50">
+    <main className="min-h-screen bg-neutral-50/50">
       <div className="max-w-6xl mx-auto px-4 lg:px-6 py-6 lg:py-8">
         <div className="flex flex-col md:flex-row md:items-end justify-between mb-6 gap-4">
           <div>
-            <nav className="flex items-center gap-1.5 text-[10px] font-semibold text-gray-400 mb-1.5">
+            <nav className="flex items-center gap-1.5 text-[10px] font-semibold text-neutral-400 mb-1.5">
               <span>Network</span>
               <ChevronRight size={12} />
               <span className="text-primary">Anchor Comparison</span>
             </nav>
-            <h2 className="text-xl lg:text-2xl font-bold text-primary">Anchor Fee Comparison</h2>
-            <p className="text-sm text-gray-500 mt-0.5">
+            <h2 className="text-xl lg:text-2xl font-medium tracking-[-0.03em] text-primary">Anchor Fee Comparison</h2>
+            <p className="text-sm text-neutral-500 mt-0.5">
               Curated SEP-24 anchor directory - fees updated as we onboard and audit anchors.
             </p>
           </div>
@@ -97,13 +97,13 @@ export default function AnchorsPage() {
             <button
               onClick={exportCsv}
               disabled={anchors.length === 0}
-              className="px-3 py-1.5 border border-gray-200 rounded-lg text-xs font-semibold text-gray-600 hover:bg-gray-50 transition-all flex items-center gap-1.5 active:scale-95 disabled:opacity-50"
+              className="px-3 py-1.5 border border-neutral-200 rounded-lg text-xs font-semibold text-neutral-600 hover:bg-neutral-50 transition-all flex items-center gap-1.5 active:scale-95 disabled:opacity-50"
             >
               <Download size={14} /> Export
             </button>
             <button
               onClick={load}
-              className="px-3 py-1.5 bg-secondary text-white rounded-lg text-xs font-semibold hover:opacity-90 transition-all flex items-center gap-1.5 active:scale-95"
+              className="px-3 py-1.5 bg-primary text-white rounded-full text-xs font-semibold hover:opacity-90 transition-all flex items-center gap-1.5 active:scale-95"
             >
               <RefreshCw size={14} className={loading ? "animate-spin" : ""} /> Update
             </button>
@@ -111,8 +111,8 @@ export default function AnchorsPage() {
         </div>
 
         {/* Filters */}
-        <section className="bg-white rounded-xl shadow-sm p-4 mb-4 flex flex-wrap items-center gap-3 border border-gray-200">
-          <div className="flex items-center gap-1.5 text-xs font-bold text-primary mr-1">
+        <section className="bg-white rounded-2xl p-4 mb-4 flex flex-wrap items-center gap-3 border border-black/5">
+          <div className="flex items-center gap-1.5 text-xs font-semibold text-primary mr-1">
             <ListFilter size={14} />Filter:
           </div>
           <div className="flex flex-wrap gap-1.5">
@@ -120,8 +120,8 @@ export default function AnchorsPage() {
               <button
                 key={c}
                 onClick={() => setCountry(c)}
-                className={`px-3 py-1 rounded-full text-[10px] font-bold transition-all active:scale-95 ${
-                  country === c ? "bg-primary text-white" : "border border-gray-200 text-gray-500 hover:border-primary hover:text-primary"
+                className={`px-3 py-1 rounded-full text-[10px] font-semibold transition-all active:scale-95 ${
+                  country === c ? "bg-primary text-white" : "border border-neutral-200 text-neutral-500 hover:border-primary hover:text-primary"
                 }`}
               >
                 {c}
@@ -132,14 +132,14 @@ export default function AnchorsPage() {
             <select
               value={assetCode}
               onChange={(e) => setAssetCode(e.target.value)}
-              className="bg-gray-50 border-none rounded-lg text-xs font-semibold py-1.5 pl-2 pr-6 focus:ring-1 focus:ring-primary"
+              className="bg-neutral-50 border-none rounded-lg text-xs font-semibold py-1.5 pl-2 pr-6 focus:ring-1 focus:ring-primary"
             >
               {ASSETS.map((a) => <option key={a} value={a}>{a}</option>)}
             </select>
             <select
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
-              className="bg-gray-50 border-none rounded-lg text-xs font-semibold py-1.5 pl-2 pr-6 focus:ring-1 focus:ring-primary"
+              className="bg-neutral-50 border-none rounded-lg text-xs font-semibold py-1.5 pl-2 pr-6 focus:ring-1 focus:ring-primary"
             >
               <option value="1000">$1,000</option>
               <option value="5000">$5,000</option>
@@ -151,42 +151,42 @@ export default function AnchorsPage() {
         {error && <div className="mb-4 px-4 py-3 rounded-xl bg-red-50 text-red-700 text-sm">{error}</div>}
 
         {/* Table */}
-        <div className="bg-white rounded-xl shadow-sm overflow-hidden border border-gray-200">
+        <div className="bg-white rounded-2xl overflow-hidden border border-black/5">
           <div className="overflow-x-auto">
             <table className="w-full text-left">
               <thead>
                 <tr className="bg-primary text-white">
-                  <th className="py-3 px-4 text-[10px] font-bold uppercase tracking-wider">Anchor</th>
-                  <th className="py-3 px-4 text-[10px] font-bold uppercase tracking-wider hidden sm:table-cell">Corridor</th>
-                  <th className="py-3 px-4 text-[10px] font-bold uppercase tracking-wider text-right">Fee</th>
-                  <th className="py-3 px-4 text-[10px] font-bold uppercase tracking-wider text-right hidden md:table-cell">Settlement</th>
+                  <th className="py-3 px-4 text-[10px] font-semibold uppercase tracking-wider">Anchor</th>
+                  <th className="py-3 px-4 text-[10px] font-semibold uppercase tracking-wider hidden sm:table-cell">Corridor</th>
+                  <th className="py-3 px-4 text-[10px] font-semibold uppercase tracking-wider text-right">Fee</th>
+                  <th className="py-3 px-4 text-[10px] font-semibold uppercase tracking-wider text-right hidden md:table-cell">Settlement</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-neutral-100">
                 {loading ? (
-                  <tr><td colSpan={4} className="py-8 text-center text-sm text-gray-400">Loading anchors…</td></tr>
+                  <tr><td colSpan={4} className="py-8 text-center text-sm text-neutral-400">Loading anchors…</td></tr>
                 ) : anchors.length === 0 ? (
-                  <tr><td colSpan={4} className="py-8 text-center text-sm text-gray-400">No anchors match these filters.</td></tr>
+                  <tr><td colSpan={4} className="py-8 text-center text-sm text-neutral-400">No anchors match these filters.</td></tr>
                 ) : (
                   anchors.map((a) => (
-                    <tr key={a.id} className="hover:bg-gray-50 transition-all duration-200">
+                    <tr key={a.id} className="hover:bg-neutral-50 transition-all duration-200">
                       <td className="py-3 px-4">
                         <div className="flex items-center gap-2.5">
-                          <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center font-bold text-xs text-primary">
+                          <div className="w-8 h-8 rounded-full bg-neutral-100 flex items-center justify-center font-semibold text-xs text-primary">
                             {a.name.charAt(0)}
                           </div>
-                          <div><p className="text-sm font-semibold text-gray-800">{a.name}</p><p className="text-[10px] text-gray-400">{a.domain}</p></div>
+                          <div><p className="text-sm font-semibold text-neutral-800">{a.name}</p><p className="text-[10px] text-neutral-400">{a.domain}</p></div>
                         </div>
                       </td>
                       <td className="py-3 px-4 hidden sm:table-cell">
-                        <div className="flex items-center gap-1.5"><span className="text-base">{a.countryFlag}</span><span className="text-xs font-semibold text-gray-600">{a.corridor}</span></div>
+                        <div className="flex items-center gap-1.5"><span className="text-base">{a.countryFlag}</span><span className="text-xs font-semibold text-neutral-600">{a.corridor}</span></div>
                       </td>
                       <td className="py-3 px-4 text-right">
-                        <p className="text-sm font-bold text-secondary">{a.feePercent}%</p>
-                        <p className="text-[9px] text-gray-400 font-semibold uppercase">Est: ${a.estimatedFee.toFixed(2)}</p>
+                        <p className="text-sm font-semibold text-secondary">{a.feePercent}%</p>
+                        <p className="text-[9px] text-neutral-400 font-semibold uppercase">Est: ${a.estimatedFee.toFixed(2)}</p>
                       </td>
                       <td className="py-3 px-4 text-right hidden md:table-cell">
-                        <p className="text-xs font-semibold text-gray-600">{a.typicalSettlement}</p>
+                        <p className="text-xs font-semibold text-neutral-600">{a.typicalSettlement}</p>
                       </td>
                     </tr>
                   ))
@@ -194,9 +194,9 @@ export default function AnchorsPage() {
               </tbody>
             </table>
           </div>
-          <div className="bg-gray-50 px-4 py-3 flex items-center justify-between border-t border-gray-200">
-            <p className="text-[10px] font-semibold text-gray-400">{anchors.length} anchor{anchors.length === 1 ? "" : "s"} match these filters</p>
-            <div className="flex items-center gap-1 text-[10px] text-gray-400">
+          <div className="bg-neutral-50 px-4 py-3 flex items-center justify-between border-t border-neutral-200">
+            <p className="text-[10px] font-semibold text-neutral-400">{anchors.length} anchor{anchors.length === 1 ? "" : "s"} match these filters</p>
+            <div className="flex items-center gap-1 text-[10px] text-neutral-400">
               <BadgeCheck size={12} /> Curated directory, manually verified
             </div>
           </div>

@@ -48,7 +48,7 @@ export const metadata: Metadata = {
   icons: {
     icon: "/favicon.png",
     shortcut: "/favicon.png",
-    apple: "/favicon.png",
+    apple: "/apple-icon.png",
   },
   metadataBase: new URL("https://remitx.app"),
   alternates: {
@@ -67,7 +67,9 @@ export default function RootLayout({
         {/* Explicit favicon to override Vercel default */}
         <link rel="icon" href="/favicon.png" sizes="any" />
         <link rel="shortcut icon" href="/favicon.png" />
-        <link rel="apple-touch-icon" href="/favicon.png" />
+        <link rel="apple-touch-icon" href="/apple-icon.png" />
+        <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+        <meta name="theme-color" content="#f7f7f5" />
         {/* eslint-disable-next-line @next/next/no-page-custom-font */}
         <link
           href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap"

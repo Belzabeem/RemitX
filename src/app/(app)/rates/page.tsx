@@ -156,27 +156,27 @@ export default function RatesPage() {
   const activeHistory = history[activePair] || [];
 
   return (
-    <main className="min-h-screen bg-gray-50/50">
+    <main className="min-h-screen bg-neutral-50/50">
       <div className="max-w-6xl mx-auto px-4 lg:px-6 py-6 lg:py-8 space-y-4">
         {/* Header */}
         <div className="flex flex-col lg:flex-row justify-between items-start lg:items-end gap-4 animate-slide-blur">
           <div>
-            <h2 className="text-xl lg:text-2xl font-bold text-gray-800">
+            <h2 className="text-xl lg:text-2xl font-medium tracking-[-0.03em] text-primary">
               Rates & DEX Monitor
             </h2>
-            <p className="text-sm text-gray-500">
+            <p className="text-sm text-neutral-500">
               Real-time Stellar DEX spreads and automated threshold alerts.
             </p>
           </div>
-          <div className="flex gap-1.5 bg-gray-100 p-1 rounded-lg overflow-x-auto">
+          <div className="flex gap-1.5 bg-neutral-100 p-1 rounded-lg overflow-x-auto">
             {ASSET_PAIRS.map((pair) => (
               <button
                 key={pair.label}
                 onClick={() => setActivePair(pair.label)}
-                className={`px-3 py-1.5 rounded-md text-[10px] font-bold whitespace-nowrap transition-all ${
+                className={`px-3 py-1.5 rounded-md text-[10px] font-semibold whitespace-nowrap transition-all ${
                   activePair === pair.label
                     ? "bg-white shadow-sm text-primary"
-                    : "text-gray-500 hover:bg-white"
+                    : "text-neutral-500 hover:bg-white"
                 }`}
               >
                 {pair.label}
@@ -193,26 +193,26 @@ export default function RatesPage() {
 
         {/* Chart + Stats */}
         <section className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          <div className="lg:col-span-2 bg-white rounded-xl p-5 shadow-sm border border-gray-200 opacity-0 animate-on-scroll">
+          <div className="lg:col-span-2 bg-white rounded-2xl p-5 border border-black/5 opacity-0 animate-on-scroll">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-4">
               <div>
                 {loading && !activeRate ? (
                   <div className="animate-pulse">
-                    <div className="h-7 w-32 bg-gray-200 rounded mb-1"></div>
-                    <div className="h-3 w-40 bg-gray-200 rounded"></div>
+                    <div className="h-7 w-32 bg-neutral-200 rounded mb-1"></div>
+                    <div className="h-3 w-40 bg-neutral-200 rounded"></div>
                   </div>
                 ) : activeRate ? (
                   <>
                     <div className="flex items-center gap-1.5">
                       <span
-                        className={`text-xl font-bold transition-colors duration-500 ${
+                        className={`text-xl font-semibold transition-colors duration-500 ${
                           flashPair === activePair
                             ? pctChange !== null && pctChange > 0
-                              ? "text-emerald-600"
+                              ? "text-neutral-900"
                               : pctChange !== null && pctChange < 0
                               ? "text-red-600"
-                              : "text-gray-800"
-                            : "text-gray-800"
+                              : "text-neutral-800"
+                            : "text-neutral-800"
                         }`}
                       >
                         {parseFloat(activeRate.rate).toLocaleString(undefined, {
@@ -222,8 +222,8 @@ export default function RatesPage() {
                       </span>
                       {pctChange !== null && Math.abs(pctChange) > 0.0001 && (
                         <span
-                          className={`flex items-center gap-0.5 text-[10px] font-bold px-1.5 py-0.5 rounded ${
-                            pctChange > 0 ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"
+                          className={`flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded ${
+                            pctChange > 0 ? "bg-neutral-100 text-neutral-800" : "bg-red-50 text-red-700"
                           }`}
                         >
                           {pctChange > 0 ? <ArrowUp size={11} /> : <ArrowDown size={11} />}
@@ -231,15 +231,15 @@ export default function RatesPage() {
                         </span>
                       )}
                       {activeRate.source === "fallback" && (
-                        <span className="text-[9px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-bold">
+                        <span className="text-[9px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-semibold">
                           stale
                         </span>
                       )}
                     </div>
-                    <p className="text-[10px] text-gray-400 uppercase font-bold">
+                    <p className="text-[10px] text-neutral-400 uppercase font-semibold">
                       Current {activeRate.fromAsset}/{activeRate.toAsset} Rate
                     </p>
-                    <p className="text-[9px] text-gray-400 mt-1">
+                    <p className="text-[9px] text-neutral-400 mt-1">
                       Updated{" "}
                       {new Date(activeRate.fetchedAt).toLocaleTimeString()}
                     </p>
@@ -247,11 +247,11 @@ export default function RatesPage() {
                 ) : (
                   <>
                     <div className="flex items-center gap-1.5">
-                      <span className="text-xl font-bold text-gray-400">
+                      <span className="text-xl font-semibold text-neutral-400">
                         --
                       </span>
                     </div>
-                    <p className="text-[10px] text-gray-400 uppercase font-bold">
+                    <p className="text-[10px] text-neutral-400 uppercase font-semibold">
                       {activePairConfig
                         ? `${activePairConfig.from}/${activePairConfig.to} rate unavailable`
                         : "Rate unavailable"}
@@ -265,14 +265,14 @@ export default function RatesPage() {
                     loading ? "bg-amber-400" : "bg-secondary"
                   }`}
                 ></span>
-                <span className="text-[10px] text-gray-400">
+                <span className="text-[10px] text-neutral-400">
                   {loading ? "Loading..." : `Live, refreshing every ${POLL_MS / 1000}s`}
                 </span>
               </div>
             </div>
             <div className="h-[180px] lg:h-[250px] w-full">
               {activeHistory.length < 2 ? (
-                <div className="flex items-center justify-center h-full text-xs text-gray-400">
+                <div className="flex items-center justify-center h-full text-xs text-neutral-400">
                   Watching for rate changes - chart fills in as updates come in.
                 </div>
               ) : (
@@ -295,18 +295,18 @@ export default function RatesPage() {
                     <svg className="w-full h-full" preserveAspectRatio="none" viewBox={`0 0 ${width} ${height}`}>
                       <defs>
                         <linearGradient id="cg" x1="0" x2="0" y1="0" y2="1">
-                          <stop offset="0%" stopColor="#006b5c" stopOpacity="0.2" />
-                          <stop offset="100%" stopColor="#006b5c" stopOpacity="0" />
+                          <stop offset="0%" stopColor="#111111" stopOpacity="0.2" />
+                          <stop offset="100%" stopColor="#111111" stopOpacity="0" />
                         </linearGradient>
                       </defs>
                       <path d={areaPath} fill="url(#cg)" />
-                      <path d={linePath} fill="none" stroke="#006b5c" strokeLinecap="round" strokeWidth="2.5" />
+                      <path d={linePath} fill="none" stroke="#111111" strokeLinecap="round" strokeWidth="2.5" />
                     </svg>
                   );
                 })()
               )}
             </div>
-            <div className="flex justify-between mt-3 text-[10px] text-gray-400">
+            <div className="flex justify-between mt-3 text-[10px] text-neutral-400">
               {activeHistory.length >= 2 ? (
                 <>
                   <span>{new Date(activeHistory[0].at).toLocaleTimeString()}</span>
@@ -321,12 +321,12 @@ export default function RatesPage() {
             className="space-y-4 opacity-0 animate-on-scroll"
             style={{ animationDelay: "100ms" }}
           >
-            <div className="bg-primary text-white rounded-xl p-5 shadow-md relative overflow-hidden flex flex-col justify-between h-full">
+            <div className="bg-primary text-white rounded-3xl p-5 shadow-md relative overflow-hidden flex flex-col justify-between h-full">
               <div className="relative z-10">
-                <h3 className="text-[10px] uppercase tracking-widest opacity-80 mb-1 font-bold">
+                <h3 className="text-[10px] uppercase tracking-widest opacity-80 mb-1 font-semibold">
                   On-Chain Liquidity ({activePairConfig?.from})
                 </h3>
-                <p className="text-lg font-bold">
+                <p className="text-lg font-semibold">
                   {liquidity
                     ? `${parseFloat(liquidity.reserves[0]?.amount || "0").toLocaleString(undefined, { maximumFractionDigits: 0 })} ${activePairConfig?.from}`
                     : "No pool found"}
@@ -337,7 +337,7 @@ export default function RatesPage() {
                   <>
                     <div className="flex justify-between text-xs">
                       <span className="opacity-70">Rate</span>
-                      <span className="font-bold">
+                      <span className="font-semibold">
                         {parseFloat(activeRate.rate).toLocaleString(undefined, {
                           minimumFractionDigits: 2,
                           maximumFractionDigits: 6,
@@ -346,14 +346,14 @@ export default function RatesPage() {
                     </div>
                     <div className="flex justify-between text-xs">
                       <span className="opacity-70">Source</span>
-                      <span className="font-bold capitalize">
+                      <span className="font-semibold capitalize">
                         {activeRate.source === "cache" ? "cached" : "live"}
                       </span>
                     </div>
                     {liquidity && (
                       <div className="flex justify-between text-xs">
                         <span className="opacity-70">Pool shares</span>
-                        <span className="font-bold">{parseFloat(liquidity.reserves[1]?.amount || "0").toLocaleString(undefined, { maximumFractionDigits: 0 })} {liquidity.reserves[1]?.asset === "native" ? "XLM" : liquidity.reserves[1]?.asset?.split(":")[0]}</span>
+                        <span className="font-semibold">{parseFloat(liquidity.reserves[1]?.amount || "0").toLocaleString(undefined, { maximumFractionDigits: 0 })} {liquidity.reserves[1]?.asset === "native" ? "XLM" : liquidity.reserves[1]?.asset?.split(":")[0]}</span>
                       </div>
                     )}
                   </>
@@ -361,11 +361,11 @@ export default function RatesPage() {
                   <>
                     <div className="flex justify-between text-xs">
                       <span className="opacity-70">Best Bid</span>
-                      <span className="font-bold">--</span>
+                      <span className="font-semibold">--</span>
                     </div>
                     <div className="flex justify-between text-xs">
                       <span className="opacity-70">Best Ask</span>
-                      <span className="font-bold">--</span>
+                      <span className="font-semibold">--</span>
                     </div>
                   </>
                 )}
@@ -377,11 +377,11 @@ export default function RatesPage() {
 
         {/* Create Alert Form */}
         <section
-          className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden opacity-0 animate-on-scroll"
+          className="bg-white rounded-2xl border border-black/5 overflow-hidden opacity-0 animate-on-scroll"
           style={{ animationDelay: "200ms" }}
         >
-          <div className="p-4 lg:p-5 border-b border-gray-200 bg-gray-50">
-            <h3 className="text-sm font-bold text-gray-800">
+          <div className="p-4 lg:p-5 border-b border-neutral-200 bg-neutral-50">
+            <h3 className="text-sm font-semibold text-neutral-800">
               Create New Rate Alert
             </h3>
           </div>
@@ -401,44 +401,44 @@ export default function RatesPage() {
             }}
           >
             <div className="space-y-1.5">
-              <label className="text-[10px] font-bold text-gray-500 uppercase">
+              <label className="text-[10px] font-semibold text-neutral-500 uppercase">
                 Asset Pair
               </label>
-              <select className="w-full bg-gray-50 border border-gray-200 rounded-lg p-2.5 text-xs focus:border-primary focus:ring-1 focus:ring-primary outline-none">
+              <select className="w-full bg-neutral-50 border border-neutral-200 rounded-lg p-2.5 text-xs focus:border-primary focus:ring-1 focus:ring-primary outline-none">
                 {ASSET_PAIRS.map((pair) => (
                   <option key={pair.label}>{pair.label}</option>
                 ))}
               </select>
             </div>
             <div className="space-y-1.5">
-              <label className="text-[10px] font-bold text-gray-500 uppercase">
+              <label className="text-[10px] font-semibold text-neutral-500 uppercase">
                 Condition
               </label>
-              <select className="w-full bg-gray-50 border border-gray-200 rounded-lg p-2.5 text-xs focus:border-primary focus:ring-1 focus:ring-primary outline-none">
+              <select className="w-full bg-neutral-50 border border-neutral-200 rounded-lg p-2.5 text-xs focus:border-primary focus:ring-1 focus:ring-primary outline-none">
                 <option>Rises Above</option>
                 <option>Drops Below</option>
                 <option>Reaches Exactly</option>
               </select>
             </div>
             <div className="space-y-1.5">
-              <label className="text-[10px] font-bold text-gray-500 uppercase">
+              <label className="text-[10px] font-semibold text-neutral-500 uppercase">
                 Threshold
               </label>
               <div className="relative">
                 <input
-                  className="w-full bg-gray-50 border border-gray-200 rounded-lg p-2.5 text-xs focus:border-primary focus:ring-1 focus:ring-primary outline-none pr-10"
+                  className="w-full bg-neutral-50 border border-neutral-200 rounded-lg p-2.5 text-xs focus:border-primary focus:ring-1 focus:ring-primary outline-none pr-10"
                   placeholder="Enter threshold"
                   type="number"
                   step="any"
                 />
-                <span className="absolute right-3 top-2.5 text-[10px] text-gray-400 font-semibold">
+                <span className="absolute right-3 top-2.5 text-[10px] text-neutral-400 font-semibold">
                   {activePair.split("/")[1] || "NGN"}
                 </span>
               </div>
             </div>
             <div>
               <button
-                className="w-full bg-secondary text-white py-2.5 rounded-lg text-xs font-bold hover:opacity-95 transition-all flex items-center justify-center gap-1.5 active:scale-95"
+                className="w-full bg-primary text-white py-2.5 rounded-full text-xs font-semibold hover:opacity-95 transition-all flex items-center justify-center gap-1.5 active:scale-95"
                 type="submit"
               >
                 <BellPlus size={14} />{" "}
@@ -450,21 +450,21 @@ export default function RatesPage() {
 
         {/* Active Alerts */}
         <section
-          className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden opacity-0 animate-on-scroll"
+          className="bg-white rounded-2xl border border-black/5 overflow-hidden opacity-0 animate-on-scroll"
           style={{ animationDelay: "300ms" }}
         >
-          <div className="p-4 lg:p-5 flex justify-between items-center border-b border-gray-200">
-            <h3 className="text-sm font-bold text-gray-800">
+          <div className="p-4 lg:p-5 flex justify-between items-center border-b border-neutral-200">
+            <h3 className="text-sm font-semibold text-neutral-800">
               Active Rate Monitors
             </h3>
-            <span className="bg-indigo-50 text-indigo-600 px-2.5 py-0.5 rounded-full text-[10px] font-bold">
+            <span className="bg-neutral-100 text-neutral-800 px-2.5 py-0.5 rounded-full text-[10px] font-semibold">
               3 Active
             </span>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-left">
               <thead>
-                <tr className="bg-gray-50 text-[10px] text-gray-400 uppercase font-bold">
+                <tr className="bg-neutral-50 text-[10px] text-neutral-400 uppercase font-semibold">
                   <th className="px-4 lg:px-5 py-3">Pair</th>
                   <th className="px-4 lg:px-5 py-3 hidden sm:table-cell">
                     Condition
@@ -477,10 +477,10 @@ export default function RatesPage() {
                   <th className="px-4 lg:px-5 py-3 text-right">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-neutral-100">
                 {[
-                  { p1: "USDC", p2: "NGN", cond: "Rises Above", th: "1,650.00", st: "Monitoring", sCls: "bg-emerald-50 text-emerald-700" },
-                  { p1: "XLM", p2: "USDC", cond: "Drops Below", th: "0.1042", st: "Monitoring", sCls: "bg-emerald-50 text-emerald-700" },
+                  { p1: "USDC", p2: "NGN", cond: "Rises Above", th: "1,650.00", st: "Monitoring", sCls: "bg-neutral-100 text-neutral-800" },
+                  { p1: "XLM", p2: "USDC", cond: "Drops Below", th: "0.1042", st: "Monitoring", sCls: "bg-neutral-100 text-neutral-800" },
                   { p1: "EURC", p2: "USDC", cond: "Reaches Exactly", th: "1.0900", st: "Near Hit", sCls: "bg-red-50 text-red-700" },
                 ].map((a, i) => {
                   const label = `${a.p1}/${a.p2}`;
@@ -497,7 +497,7 @@ export default function RatesPage() {
                   return (
                     <tr
                       key={i}
-                      className="hover:bg-gray-50 transition-all duration-200"
+                      className="hover:bg-neutral-50 transition-all duration-200"
                     >
                       <td className="px-4 lg:px-5 py-3">
                         <div className="flex items-center gap-2.5">
@@ -507,8 +507,8 @@ export default function RatesPage() {
                                 i === 0
                                   ? "bg-primary"
                                   : i === 1
-                                  ? "bg-indigo-100 text-indigo-600"
-                                  : "bg-blue-600"
+                                  ? "bg-neutral-200 text-neutral-800"
+                                  : "bg-neutral-900"
                               } flex items-center justify-center text-[8px] text-white border-2 border-white`}
                             >
                               {a.p1}
@@ -517,25 +517,25 @@ export default function RatesPage() {
                               {a.p2}
                             </div>
                           </div>
-                          <span className="text-xs font-bold text-gray-700">
+                          <span className="text-xs font-semibold text-neutral-700">
                             {label}
                           </span>
                         </div>
                       </td>
-                      <td className="px-4 lg:px-5 py-3 text-xs text-gray-500 hidden sm:table-cell">
+                      <td className="px-4 lg:px-5 py-3 text-xs text-neutral-500 hidden sm:table-cell">
                         {a.cond}
                       </td>
-                      <td className="px-4 lg:px-5 py-3 text-xs font-bold text-gray-700">
+                      <td className="px-4 lg:px-5 py-3 text-xs font-semibold text-neutral-700">
                         {a.th}
                       </td>
                       <td className="px-4 lg:px-5 py-3 hidden md:table-cell">
                         <span
-                          className={`text-xs font-bold ${
+                          className={`text-xs font-semibold ${
                             diff !== null && parseFloat(diff) > 0
                               ? "text-secondary"
                               : diff !== null && parseFloat(diff) < 0
                               ? "text-red-500"
-                              : "text-gray-500"
+                              : "text-neutral-500"
                           }`}
                         >
                           {live
@@ -545,17 +545,17 @@ export default function RatesPage() {
                       </td>
                       <td className="px-4 lg:px-5 py-3">
                         <span
-                          className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase ${a.sCls}`}
+                          className={`px-2 py-0.5 rounded text-[9px] font-semibold uppercase ${a.sCls}`}
                         >
                           {a.st}
                         </span>
                       </td>
                       <td className="px-4 lg:px-5 py-3 text-right">
                         <div className="flex justify-end gap-1">
-                          <button className="p-1 text-gray-400 hover:text-primary hover:bg-indigo-50 rounded-lg transition-all">
+                          <button className="p-1 text-neutral-400 hover:text-primary hover:bg-neutral-100 rounded-lg transition-all">
                             <Pencil size={14} />
                           </button>
-                          <button className="p-1 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all">
+                          <button className="p-1 text-neutral-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all">
                             <Trash2 size={14} />
                           </button>
                         </div>
@@ -566,8 +566,8 @@ export default function RatesPage() {
               </tbody>
             </table>
           </div>
-          <div className="p-3 border-t border-gray-200 text-center">
-            <button className="text-[10px] text-primary font-bold hover:underline">
+          <div className="p-3 border-t border-neutral-200 text-center">
+            <button className="text-[10px] text-primary font-semibold hover:underline">
               View All Alert History
             </button>
           </div>
@@ -579,10 +579,10 @@ export default function RatesPage() {
         className="fixed bottom-6 right-6 translate-y-20 opacity-0 transition-all duration-500 z-[100]"
         id="toast"
       >
-        <div className="bg-gray-900 text-white px-5 py-3 rounded-xl shadow-2xl flex items-center gap-3">
-          <CheckCircle2 size={20} className="text-emerald-400" />
+        <div className="bg-neutral-900 text-white px-5 py-3 rounded-xl shadow-2xl flex items-center gap-3">
+          <CheckCircle2 size={20} className="text-neutral-500" />
           <div>
-            <p className="text-xs font-bold">Alert Created</p>
+            <p className="text-xs font-semibold">Alert Created</p>
             <p className="text-[10px] opacity-80">
               We will notify you at the threshold
             </p>

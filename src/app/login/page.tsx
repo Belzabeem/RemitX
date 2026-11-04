@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Landmark, Eye, EyeOff, Check, X } from "lucide-react";
+import BrandMark from "@/components/BrandMark";
+import { Eye, EyeOff, Check, X } from "lucide-react";
 import TurnstileWidget from "@/components/TurnstileWidget";
 import { getPasswordStrength, MIN_PASSWORD_SCORE } from "@/lib/password-strength";
 
@@ -81,17 +82,17 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-gray-50 flex items-center justify-center px-4 py-8">
-      <div className="w-full max-w-md glass-card p-8 rounded-2xl shadow-lg">
+    <div className="min-h-screen bg-background flex items-center justify-center px-4 py-8">
+      <div className="w-full max-w-md bg-white border border-black/5 p-8 rounded-3xl">
         <div className="text-center mb-6">
           <div className="flex items-center justify-center gap-2 mb-2">
-            <Landmark size={24} className="text-primary" />
-            <span className="font-bold text-xl text-primary">RemitX</span>
+            <BrandMark size={22} className="text-primary" />
+            <span className="font-medium tracking-[-0.03em] text-xl tracking-[-0.01em] text-primary">RemitX</span>
           </div>
-          <h1 className="text-lg font-semibold text-primary">
+          <h1 className="text-2xl font-medium tracking-[-0.035em] text-primary">
             {isRegister ? "Create Account" : "Sign In"}
           </h1>
-          <p className="text-sm text-gray-500 mt-1">
+          <p className="text-sm text-neutral-500 mt-1">
             {isRegister
               ? "Register to start sending money"
               : "Welcome back to RemitX"}
@@ -102,7 +103,7 @@ export default function LoginPage() {
           {isRegister && (
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-neutral-700 mb-1">
                   First Name
                 </label>
                 <input
@@ -110,12 +111,12 @@ export default function LoginPage() {
                   value={firstName}
                   onChange={(e) => setFirstName(e.target.value)}
                   required
-                  className="w-full px-4 py-2.5 rounded-lg border border-gray-200 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all text-sm"
+                  className="w-full px-4 py-2.5 rounded-lg border border-neutral-200 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all text-sm"
                   placeholder="Peter"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-neutral-700 mb-1">
                   Last Name
                 </label>
                 <input
@@ -123,7 +124,7 @@ export default function LoginPage() {
                   value={lastName}
                   onChange={(e) => setLastName(e.target.value)}
                   required
-                  className="w-full px-4 py-2.5 rounded-lg border border-gray-200 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all text-sm"
+                  className="w-full px-4 py-2.5 rounded-lg border border-neutral-200 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all text-sm"
                   placeholder="Okoye"
                 />
               </div>
@@ -131,7 +132,7 @@ export default function LoginPage() {
           )}
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-neutral-700 mb-1">
               Email
             </label>
             <input
@@ -139,13 +140,13 @@ export default function LoginPage() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
-              className="w-full px-4 py-2.5 rounded-lg border border-gray-200 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all text-sm"
+              className="w-full px-4 py-2.5 rounded-lg border border-neutral-200 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all text-sm"
               placeholder="you@example.com"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-neutral-700 mb-1">
               Password
             </label>
             <div className="relative">
@@ -155,13 +156,13 @@ export default function LoginPage() {
                 onChange={(e) => setPassword(e.target.value)}
                 required
                 minLength={isRegister ? 8 : 1}
-                className="w-full px-4 py-2.5 rounded-lg border border-gray-200 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all text-sm pr-12"
+                className="w-full px-4 py-2.5 rounded-lg border border-neutral-200 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all text-sm pr-12"
                 placeholder={isRegister ? "At least 8 characters" : "Your password"}
               />
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-primary transition-colors"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-primary transition-colors"
                 aria-label={showPassword ? "Hide password" : "Show password"}
               >
                 {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
@@ -172,16 +173,16 @@ export default function LoginPage() {
                 <div className="flex items-center gap-2">
                   <div className="flex-1 flex gap-1">
                     {[0, 1, 2, 3, 4].map((i) => (
-                      <div key={i} className={`h-1.5 flex-1 rounded-full transition-all duration-300 ${i < strength.score ? strength.color : "bg-gray-200"}`} />
+                      <div key={i} className={`h-1.5 flex-1 rounded-full transition-all duration-300 ${i < strength.score ? strength.color : "bg-neutral-200"}`} />
                     ))}
                   </div>
-                  <span className="text-[10px] font-bold text-gray-500 uppercase">{strength.label}</span>
+                  <span className="text-[10px] font-semibold text-neutral-500 uppercase">{strength.label}</span>
                 </div>
                 <div className="grid grid-cols-2 gap-1">
                   {strength.checks.map((check) => (
                     <div key={check.label} className="flex items-center gap-1 text-[10px]">
-                      {check.passed ? <Check size={12} className="text-emerald-500 shrink-0" /> : <X size={12} className="text-gray-300 shrink-0" />}
-                      <span className={check.passed ? "text-gray-600" : "text-gray-400"}>{check.label}</span>
+                      {check.passed ? <Check size={12} className="text-neutral-900 shrink-0" /> : <X size={12} className="text-neutral-300 shrink-0" />}
+                      <span className={check.passed ? "text-neutral-600" : "text-neutral-400"}>{check.label}</span>
                     </div>
                   ))}
                 </div>
@@ -191,7 +192,7 @@ export default function LoginPage() {
 
           {isRegister && (
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-neutral-700 mb-1">
                 Confirm Password
               </label>
               <div className="relative">
@@ -204,23 +205,23 @@ export default function LoginPage() {
                   className={`w-full px-4 py-2.5 rounded-lg border focus:ring-2 outline-none transition-all text-sm pr-12 ${
                     confirmTouched
                       ? passwordsMatch
-                        ? "border-emerald-500 focus:border-emerald-500 focus:ring-emerald-500/20"
+                        ? "border-neutral-900 focus:border-neutral-900 focus:ring-neutral-900/20"
                         : "border-red-500 focus:border-red-500 focus:ring-red-500/20"
-                      : "border-gray-200 focus:border-primary focus:ring-primary/20"
+                      : "border-neutral-200 focus:border-primary focus:ring-primary/20"
                   }`}
                   placeholder="Re-enter your password"
                 />
                 <button
                   type="button"
                   onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-primary transition-colors"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-primary transition-colors"
                   aria-label={showConfirmPassword ? "Hide confirm password" : "Show confirm password"}
                 >
                   {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                 </button>
               </div>
               {confirmTouched && (
-                <p className={`mt-1 flex items-center gap-1 text-[10px] font-semibold ${passwordsMatch ? "text-emerald-600" : "text-red-500"}`}>
+                <p className={`mt-1 flex items-center gap-1 text-[10px] font-semibold ${passwordsMatch ? "text-neutral-900" : "text-red-500"}`}>
                   {passwordsMatch ? (<><Check size={12} /> Passwords match</>) : (<><X size={12} /> Passwords do not match</>)}
                 </p>
               )}
@@ -241,7 +242,7 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={loading || !turnstileToken}
-            className="w-full py-2.5 bg-primary text-white rounded-lg font-semibold text-sm hover:shadow-md transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full py-2.5 bg-primary text-white rounded-full font-semibold text-sm hover:shadow-md transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {loading
               ? "Loading..."
@@ -251,7 +252,7 @@ export default function LoginPage() {
           </button>
         </form>
 
-        <p className="text-center text-sm text-gray-500 mt-6">
+        <p className="text-center text-sm text-neutral-500 mt-6">
           {isRegister ? "Already have an account?" : "Don't have an account?"}{" "}
           <button
             onClick={() => {

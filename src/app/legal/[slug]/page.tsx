@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Landmark } from "lucide-react";
+import BrandMark from "@/components/BrandMark";
 
 const PAGES: Record<string, { title: string; body: string }> = {
   privacy: {
@@ -54,13 +54,13 @@ export default async function LegalPage({ params }: { params: Promise<{ slug: st
   if (!page) notFound();
 
   return (
-    <main className="min-h-screen bg-gray-50/50">
+    <main className="min-h-screen bg-background">
       <div className="max-w-2xl mx-auto px-4 lg:px-6 py-10 space-y-4">
-        <Link href="/" className="inline-flex items-center gap-2 text-primary font-bold text-sm mb-4">
-          <Landmark size={18} /> RemitX
+        <Link href="/" className="inline-flex items-center gap-2 text-primary font-semibold text-sm mb-4">
+          <BrandMark size={16} /> RemitX
         </Link>
-        <h1 className="text-2xl font-bold text-gray-800">{page.title}</h1>
-        <p className="text-sm text-gray-600 leading-relaxed">{page.body}</p>
+        <h1 className="text-3xl font-medium tracking-[-0.035em] text-primary">{page.title}</h1>
+        <p className="text-sm text-neutral-600 leading-relaxed">{page.body}</p>
       </div>
     </main>
   );
