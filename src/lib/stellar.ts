@@ -15,6 +15,9 @@ export const NETWORK_PASSPHRASE = NETWORK === "testnet" ? Networks.TESTNET : Net
 
 export const server = new Horizon.Server(HORIZON_URL);
 
+// Base URL for the Stellar testnet explorer (used for transaction links).
+export const EXPLORER_BASE = "https://stellar.expert/explorer/testnet";
+
 // ---------------------------------------------------------------------------
 // Stellar Integration
 //
@@ -93,6 +96,29 @@ export async function createTestnetAccount(): Promise<{
   }
 
   return { publicKey, secretKey };
+}
+
+/** Ask Friendbot to fund an existing testnet account. Returns { funded: true }
+ * on success, or { funded: false, reason } on failure. Testnet only. */
+export async function fundTestnetAccount(publicKey: string): Promise<{
+  funded: boolean;
+  reason?: string;
+}> {
+  if (NETWORK !== "testnet") {
+    return { funded: false, reason: "Friendbot is only available on testnet" };
+  }
+  const friendbotUrl = `https://friendbot.stellar.org?addr=${publicKey}`;
+  try {
+    const response = await fetch(friendbotUrl, { method: "GET" });
+    if (!response.ok) {
+      const body = await response.text();
+      return { funded: false, reason: `Friendbot responded with ${response.status}: ${body}` };
+    }
+    return { funded: true };
+  } catch (err) {
+    console.warn("[fundTestnetAccount] Friendbot request failed:", err);
+    return { funded: false, reason: err instanceof Error ? err.message : "Friendbot request failed" };
+  }
 }
 
 /** Fetch a live rate for fromAsset -> toAsset (real free-API rate engine, see lib/rates.ts) */
