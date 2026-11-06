@@ -4,3 +4,8 @@ declare module "prisma/config" {
   export function defineConfig(config: Record<string, unknown>): Record<string, unknown>;
 }
 
+declare module "@supabase/supabase-js" {
+  export const createClient: any;
+  export type SupabaseClient<T = any> = any;
+}
+

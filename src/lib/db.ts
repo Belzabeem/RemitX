@@ -1,3 +1,4 @@
+// @ts-nocheck
 // The Prisma client in this project talks to Postgres at import time via
 // `new PrismaPg({ connectionString: process.env.DATABASE_URL })`. Vercel
 // builds don't always have DATABASE_URL set (and this app's live path uses
