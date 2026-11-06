@@ -50,7 +50,13 @@ function getAllowedOrigins(): string[] {
     .filter(Boolean);
   return configured.length > 0
     ? configured
-    : ["https://remitx.app", "https://remitx.vercel.app"];
+    : [
+        "https://remitx.app",
+        "https://remitx.vercel.app",
+        "https://remitxx.vercel.app",
+        "https://remit-x-git-main-codex723s-projects.vercel.app",
+        "https://remit-7cxuqktf8-codex723s-projects.vercel.app",
+      ];
 }
 
 export async function proxy(request: NextRequest) {
