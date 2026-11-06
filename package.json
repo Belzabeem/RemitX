@@ -12,11 +12,14 @@
   },
   "dependencies": {
     "@creit.tech/stellar-wallets-kit": "^2.8.0",
+    "@prisma/adapter-pg": "^7.8.0",
+    "@prisma/client": "^7.8.0",
     "@stellar/stellar-sdk": "^16.0.1",
     "bcryptjs": "^3.0.3",
     "jsonwebtoken": "^9.0.3",
     "lucide-react": "^0.475.0",
     "next": "^16.4.5",
+    "prisma": "^7.8.0",
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "zod": "^3.25.76"
