@@ -26,11 +26,11 @@ export async function POST(request: NextRequest) {
     const user = await data.users.findByEmail(email);
 
     if (user) {
-      const { expiresAt } = generateResetToken(user.id); // no mailer is configured yet; the token is not delivered
+      const { expiresAt: _expiresAt } = generateResetToken(user.id); // no mailer is configured yet; the token is not delivered
       logSecurityEvent("password_reset_request", { userId: user.id });
 
       // In production, send email with reset link. In dev, log without leaking passwords.
-      console.log(`[DEV] Password reset token generated for ${email} (expires ${new Date(expiresAt).toISOString()})`);
+      console.log(`[DEV] Password reset token generated for ${email} (expires ${new Date(_expiresAt).toISOString()})`);
     }
 
     return successResponse({

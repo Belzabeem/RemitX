@@ -62,7 +62,7 @@ describe("API Routes End-to-End without Database Environment Variables", () => {
       }),
     });
 
-    const res = await loginPost(req as unknown as NextRequest);
+    const res = await loginPost(req as NextRequest);
     const json = await res.json();
 
     expect(res.status).toBe(200);
@@ -85,7 +85,7 @@ describe("API Routes End-to-End without Database Environment Variables", () => {
       }),
     });
 
-    const res = await registerPost(req as unknown as NextRequest);
+    const res = await registerPost(req as NextRequest);
     const json = await res.json();
 
     expect(res.status).toBe(201);
@@ -103,7 +103,7 @@ describe("API Routes End-to-End without Database Environment Variables", () => {
       }),
     });
 
-    const loginRes = await loginPost(loginReq as unknown as NextRequest);
+    const loginRes = await loginPost(loginReq as NextRequest);
     const loginJson = await loginRes.json();
     expect(loginRes.status).toBe(200);
     expect(loginJson.data.user.email).toBe("contributor@test.org");

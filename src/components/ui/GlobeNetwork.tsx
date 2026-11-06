@@ -444,7 +444,6 @@ export default function GlobeNetwork() {
             const textMetrics = ctx.measureText(label);
             const textWidth = textMetrics.width;
             const padX = 5;
-            const padY = 2.5;
             const boxW = textWidth + padX * 2;
             const boxH = 16;
             const boxX = sx + 8;
