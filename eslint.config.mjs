@@ -24,6 +24,8 @@ const eslintConfig = defineConfig([
     ".kilo/**",
     // Generated Prisma client code
     "src/generated/**",
+    // Test coverage report
+    "coverage/**",
     // Smart contract code
     "contracts/**",
   ]),

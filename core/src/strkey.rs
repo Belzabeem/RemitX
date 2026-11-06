@@ -42,7 +42,11 @@ pub struct StellarAddressCheck {
 
 impl StellarAddressCheck {
     fn ok() -> Self {
-        StellarAddressCheck { valid: true, problem: None, message: None }
+        StellarAddressCheck {
+            valid: true,
+            problem: None,
+            message: None,
+        }
     }
     fn fail(problem: StellarAddressProblem, message: &str) -> Self {
         StellarAddressCheck {
@@ -59,7 +63,7 @@ fn crc16_xmodem(bytes: &[u8]) -> u16 {
     let mut crc: u32 = 0x0000;
     for &b in bytes {
         let mut code: u32 = (crc >> 8) & 0xff;
-        code ^= (b & 0xff) as u32;
+        code ^= b as u32;
         code ^= code >> 4;
         crc = (crc << 8) & 0xffff;
         crc ^= code;
@@ -102,7 +106,11 @@ fn decode_base32(input: &str) -> Option<[u8; DECODED_LENGTH]> {
         }
     }
 
-    if index == DECODED_LENGTH { Some(out) } else { None }
+    if index == DECODED_LENGTH {
+        Some(out)
+    } else {
+        None
+    }
 }
 
 /// Validate a Stellar ed25519 public key, checksum included. Returns *why* it
@@ -175,6 +183,45 @@ pub fn check_stellar_public_key(address: &str) -> StellarAddressCheck {
 /// Convenience boolean wrapper for callers that don't need the reason.
 pub fn is_valid_stellar_public_key(address: &str) -> bool {
     check_stellar_public_key(address).valid
+}
+
+/// Test-only helper: construct a valid StrKey `G...` address from a 32-byte
+/// ed25519 public key. Available only under `--cfg test` so other test
+/// modules (e.g. `validation`) can build genuinely valid fixture addresses.
+#[cfg(test)]
+pub(crate) fn make_test_address(pubkey: [u8; 32]) -> String {
+    let mut data = [0u8; 33];
+    data[0] = ED25519_PUBLIC_KEY_VERSION_BYTE;
+    data[1..33].copy_from_slice(&pubkey);
+    let checksum = crc16_xmodem(&data);
+    let mut full = [0u8; 35];
+    full[..33].copy_from_slice(&data);
+    full[33] = (checksum & 0xff) as u8;
+    full[34] = (checksum >> 8) as u8;
+    encode_base32_test(&full)
+}
+
+/// Base32 (RFC 4648, no padding) encoder for test fixtures.
+/// Mirrors the one inside `strkey::tests` so `make_test_address` can call it
+/// from module level.
+#[cfg(test)]
+fn encode_base32_test(bytes: &[u8]) -> String {
+    const ALPHABET: &[u8; 32] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+    let mut out = String::with_capacity((bytes.len() * 8).div_ceil(5));
+    let mut value: u32 = 0;
+    let mut bits: u32 = 0;
+    for &b in bytes {
+        value = (value << 8) | (b as u32);
+        bits += 8;
+        while bits >= 5 {
+            bits -= 5;
+            out.push(ALPHABET[((value >> bits) & 0x1f) as usize] as char);
+        }
+    }
+    if bits > 0 {
+        out.push(ALPHABET[((value << (5 - bits)) & 0x1f) as usize] as char);
+    }
+    out
 }
 
 #[cfg(test)]
@@ -258,24 +305,39 @@ mod tests {
 
     #[test]
     fn empty_and_prefix_are_rejected() {
-        assert_eq!(check_stellar_public_key("").problem, Some(StellarAddressProblem::Empty));
+        assert_eq!(
+            check_stellar_public_key("").problem,
+            Some(StellarAddressProblem::Empty)
+        );
         // Secret-key style input (starts with S) → prefix problem.
         let secret = format!("S{}", &make_address([7u8; 32])[1..]);
-        assert_eq!(check_stellar_public_key(&secret).problem, Some(StellarAddressProblem::Prefix));
+        assert_eq!(
+            check_stellar_public_key(&secret).problem,
+            Some(StellarAddressProblem::Prefix)
+        );
     }
 
     #[test]
     fn length_problems_are_distinguished() {
-        assert_eq!(check_stellar_public_key("GBRPYHIL").problem, Some(StellarAddressProblem::TooShort));
+        assert_eq!(
+            check_stellar_public_key("GBRPYHIL").problem,
+            Some(StellarAddressProblem::TooShort)
+        );
         let long = format!("{}A", make_address([7u8; 32]));
-        assert_eq!(check_stellar_public_key(&long).problem, Some(StellarAddressProblem::TooLong));
+        assert_eq!(
+            check_stellar_public_key(&long).problem,
+            Some(StellarAddressProblem::TooLong)
+        );
     }
 
     #[test]
     fn illegal_characters_report_charset() {
         let mut bad = make_address([7u8; 32]);
         bad.replace_range(5..6, "0"); // '0' is never in the base32 alphabet
-        assert_eq!(check_stellar_public_key(&bad).problem, Some(StellarAddressProblem::Charset));
+        assert_eq!(
+            check_stellar_public_key(&bad).problem,
+            Some(StellarAddressProblem::Charset)
+        );
     }
 
     #[test]
@@ -300,43 +362,4 @@ mod tests {
         let addr = make_address([7u8; 32]);
         assert!(is_valid_stellar_public_key(&format!("  {}  ", addr)));
     }
-}
-
-/// Test-only helper: construct a valid StrKey `G...` address from a 32-byte
-/// ed25519 public key. Available only under `--cfg test` so other test
-/// modules (e.g. `validation`) can build genuinely valid fixture addresses.
-#[cfg(test)]
-pub(crate) fn make_test_address(pubkey: [u8; 32]) -> String {
-    let mut data = [0u8; 33];
-    data[0] = ED25519_PUBLIC_KEY_VERSION_BYTE;
-    data[1..33].copy_from_slice(&pubkey);
-    let checksum = crc16_xmodem(&data);
-    let mut full = [0u8; 35];
-    full[..33].copy_from_slice(&data);
-    full[33] = (checksum & 0xff) as u8;
-    full[34] = (checksum >> 8) as u8;
-    encode_base32_test(&full)
-}
-
-/// Base32 (RFC 4648, no padding) encoder for test fixtures.
-/// Mirrors the one inside `strkey::tests` so `make_test_address` can call it
-/// from module level.
-#[cfg(test)]
-fn encode_base32_test(bytes: &[u8]) -> String {
-    const ALPHABET: &[u8; 32] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
-    let mut out = String::with_capacity((bytes.len() * 8 + 4) / 5);
-    let mut value: u32 = 0;
-    let mut bits: u32 = 0;
-    for &b in bytes {
-        value = (value << 8) | (b as u32);
-        bits += 8;
-        while bits >= 5 {
-            bits -= 5;
-            out.push(ALPHABET[((value >> bits) & 0x1f) as usize] as char);
-        }
-    }
-    if bits > 0 {
-        out.push(ALPHABET[((value << (5 - bits)) & 0x1f) as usize] as char);
-    }
-    out
 }

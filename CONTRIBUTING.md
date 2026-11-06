@@ -41,11 +41,18 @@ Run the app locally:
 npm run dev
 ```
 
-Run lint before opening a PR:
+No `.env` or database is needed: the app runs on an in-memory store (see README, "Development mode").
+
+Run the checks before opening a PR:
 
 ```bash
 npm run lint
+npx tsc --noEmit
+npm run test:coverage
+cd contracts && cargo fmt --all -- --check && cargo clippy --workspace --all-targets -- -D warnings && cargo test --workspace
 ```
+
+Commit messages follow Conventional Commits (`feat:`, `fix:`, `test:`, `docs:`, `ci:`, `chore:`), one concern per commit. Never commit secrets or `.env` files.
 
 ## Pull request checklist
 
@@ -54,6 +61,8 @@ Before opening a PR, make sure you have:
 - kept the change focused on the issue you claimed
 - tested the commands or snippets you mention in docs
 - updated docs when behavior changed
+- run the checks above and fixed failures
+- added or updated tests for behaviour changes
 - explained any intentional deviation from the issue in the PR description
 
 A good PR description usually includes:

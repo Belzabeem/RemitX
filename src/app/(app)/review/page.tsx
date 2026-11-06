@@ -1,19 +1,16 @@
 "use client";
 
 import { Suspense, useState } from "react";
-import { useSearchParams } from "next/navigation";
 import Link from "next/link";
-import {
-  ShieldCheck,
-  AlertTriangle,
-  AlertCircle,
-  Send,
-  Link2,
-  ChevronRight,
-  Copy,
-  Check,
-} from "lucide-react";
+import { useSearchParams } from "next/navigation";
+import { Check, ExternalLink } from "lucide-react";
+import PageHeader from "@/components/ui/PageHeader";
+import Notice from "@/components/ui/Notice";
+import CopyButton from "@/components/ui/CopyButton";
+import { Ledger, LedgerRow, LedgerStack } from "@/components/ui/Ledger";
 import { checkStellarPublicKey } from "@/lib/stellar-address";
+import { formatAmount, formatRate, truncateMiddle } from "@/lib/format";
+import { explorerTxUrl, NETWORK_LABEL } from "@/lib/network-label";
 
 interface StoredTx {
   transactionId: string;
@@ -23,6 +20,33 @@ interface StoredTx {
   fromAmount: string;
   toAmount: string;
   recipientAddress: string;
+}
+
+const STEPS = ["Details", "Review", "Sent"];
+
+function Steps({ current }: { current: number }) {
+  return (
+    <ol className="mb-8 flex items-center gap-3 text-[14px]" aria-label="Progress">
+      {STEPS.map((label, i) => (
+        <li key={label} className="flex items-center gap-3" aria-current={i === current ? "step" : undefined}>
+          <span className={i <= current ? "font-medium text-ink" : "text-faint"}>
+            <span className="mr-1.5 inline-block w-3 text-center">{i < current ? <Check size={13} className="inline" /> : i + 1}</span>
+            {label}
+          </span>
+          {i < STEPS.length - 1 && <span className="inline-block w-8 border-t-2 border-dotted border-line-strong" aria-hidden="true" />}
+        </li>
+      ))}
+    </ol>
+  );
+}
+
+function Message({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="rx-page">
+      <PageHeader title="Review transfer" />
+      <p className="max-w-[52ch] text-[15px] leading-6 text-muted">{children}</p>
+    </div>
+  );
 }
 
 function ReviewInner() {
@@ -38,10 +62,8 @@ function ReviewInner() {
   const [status, setStatus] = useState<"idle" | "submitting" | "confirmed" | "failed">("idle");
   const [error, setError] = useState<string | null>(null);
   const [hash, setHash] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
 
-  // Re-verify here too: the address arrives from sessionStorage, so a stale or
-  // tampered entry would otherwise be signed for without a second look.
+  // The address comes back out of sessionStorage, so check it again before signing.
   const recipientCheck = checkStellarPublicKey(tx?.recipientAddress ?? "");
 
   const handleConfirm = async () => {
@@ -52,16 +74,13 @@ function ReviewInner() {
       const res = await fetch("/api/stellar/sign-and-submit", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          transactionId: tx.transactionId,
-          xdr: tx.xdr,
-          secretKey: secretKey.trim(),
-        }),
+        body: JSON.stringify({ transactionId: tx.transactionId, xdr: tx.xdr, secretKey: secretKey.trim() }),
       });
       const json = await res.json();
       if (res.ok && json.data.status === "confirmed") {
         setStatus("confirmed");
         setHash(json.data.stellarTxHash);
+        setSecretKey("");
         sessionStorage.removeItem(`remitx:tx:${tx.transactionId}`);
       } else {
         setStatus("failed");
@@ -69,173 +88,136 @@ function ReviewInner() {
       }
     } catch {
       setStatus("failed");
-      setError("Couldn't reach the server.");
+      setError("Couldn't reach the server. Nothing was sent.");
     }
-  };
-
-  const copyHash = () => {
-    if (!hash) return;
-    navigator.clipboard.writeText(hash);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1500);
   };
 
   if (!transactionId) {
     return (
-      <main className="min-h-screen bg-neutral-50/50 flex items-center justify-center">
-        <p className="text-sm text-neutral-500">No transaction to review. <Link href="/send" className="text-primary font-semibold">Start a new send</Link>.</p>
-      </main>
+      <Message>
+        There&apos;s no transfer to review. <Link href="/send" className="rx-link">Start a new one</Link>.
+      </Message>
     );
   }
-
   if (!tx) {
     return (
-      <main className="min-h-screen bg-neutral-50/50 flex items-center justify-center">
-        <p className="text-sm text-neutral-500">
-          This transaction isn&apos;t in this browser session anymore. <Link href="/send" className="text-primary font-semibold">Start a new send</Link>.
-        </p>
-      </main>
+      <Message>
+        This transfer is no longer in this browser session. <Link href="/send" className="rx-link">Start a new one</Link>.
+      </Message>
     );
   }
 
+  const done = status === "confirmed";
+  const effectiveRate = parseFloat(tx.toAmount) / parseFloat(tx.fromAmount);
+  const busy = status === "submitting";
+  const canSign = !!secretKey.trim() && recipientCheck.valid && !busy;
+
   return (
-    <main className="min-h-screen bg-neutral-50/50">
-      <div className="max-w-4xl mx-auto px-4 lg:px-6 py-6 lg:py-8">
-        <div className="flex flex-wrap items-center gap-1.5 mb-5 text-xs text-neutral-400 font-semibold">
-          <Link href="/send" className="hover:text-primary transition-colors">Send Money</Link>
-          <ChevronRight size={14} />
-          <span className="text-primary font-semibold">Review & Confirm</span>
-        </div>
+    <div className="rx-page">
+      <PageHeader
+        title={done ? "Transfer sent" : "Review transfer"}
+        description={done ? "The recipient has been paid on Stellar." : "Nothing is signed until you confirm on the right."}
+      />
+      <Steps current={done ? 2 : 1} />
 
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-6">
-          {/* Left */}
-          <div className="lg:col-span-7 space-y-4">
-            <div className="bg-white rounded-2xl p-5 lg:p-6 border border-black/5">
-              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-4">
-                <h2 className="text-base font-semibold text-primary">Transaction Summary</h2>
-                <div className="bg-neutral-100 text-neutral-800 px-2.5 py-0.5 rounded-full flex items-center gap-1">
-                  <ShieldCheck size={14} />
-                  <span className="text-[10px] font-semibold">Secured by Stellar</span>
-                </div>
-              </div>
-              <div className="text-center py-6 border-b border-neutral-100">
-                <p className="text-[10px] text-neutral-400 uppercase font-semibold mb-1">Total to Recipient</p>
-                <h3 className="text-2xl lg:text-3xl font-medium tracking-[-0.03em] text-primary">
-                  {tx.toAmount} <span className="text-sm text-neutral-400 font-semibold">{tx.toAsset}</span>
-                </h3>
-              </div>
-              <div className="space-y-3 py-4">
-                <div className="flex justify-between items-center text-sm">
-                  <span className="text-neutral-500">Sending Amount</span>
-                  <span className="font-semibold text-neutral-800">{tx.fromAmount} {tx.fromAsset}</span>
-                </div>
-                <div className="flex justify-between items-center text-sm text-secondary font-semibold">
-                  <span>Exchange Rate</span>
-                  <span>
-                    1 {tx.fromAsset} = {(parseFloat(tx.toAmount) / parseFloat(tx.fromAmount)).toFixed(4)} {tx.toAsset}
-                  </span>
-                </div>
-              </div>
-              <div className="bg-neutral-50 rounded-lg p-3 flex justify-between items-center border border-neutral-200">
-                <span className="text-sm font-semibold text-primary">Total Cost</span>
-                <span className="text-sm font-semibold text-primary">{tx.fromAmount} {tx.fromAsset}</span>
-              </div>
-            </div>
+      <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-12 lg:grid-cols-[minmax(0,1fr)_380px] lg:gap-16">
+        <section aria-label="Transfer summary">
+          <p className="rx-small">They receive</p>
+          <p className="rx-figure mt-1 text-[40px] md:text-[52px]">
+            {formatAmount(tx.toAmount, tx.toAsset)}
+            <span className="ml-2 text-[20px] font-normal tracking-normal text-muted">{tx.toAsset}</span>
+          </p>
 
-            <div className="bg-red-50 border border-red-200 rounded-xl p-3 flex gap-3 items-start">
-              <AlertTriangle size={16} className="text-red-500 mt-0.5 shrink-0" />
-              <div>
-                <p className="text-[10px] font-semibold text-red-700 mb-0.5 uppercase">Security Verification</p>
-                <p className="text-[10px] text-neutral-500">Double-check the recipient&apos;s wallet address. Assets sent on Stellar cannot be reversed.</p>
-              </div>
-            </div>
+          <div className="mt-6 max-w-[520px]">
+            <Ledger>
+              <LedgerRow label="You send">
+                {formatAmount(tx.fromAmount, tx.fromAsset)} {tx.fromAsset}
+              </LedgerRow>
+              <LedgerRow label="Rate">
+                {Number.isFinite(effectiveRate) ? `1 ${tx.fromAsset} = ${formatRate(effectiveRate)} ${tx.toAsset}` : "\u2013"}
+              </LedgerRow>
+              <LedgerRow label="RemitX fee">None</LedgerRow>
+              <LedgerRow label="Arrives">About 5 seconds</LedgerRow>
+              <LedgerRow label="Total cost" total>
+                {formatAmount(tx.fromAmount, tx.fromAsset)} {tx.fromAsset}
+              </LedgerRow>
+            </Ledger>
+            <dl className="mt-4">
+              <LedgerStack label="Recipient" action={<CopyButton value={tx.recipientAddress} label="Copy recipient address" />}>
+                <span className="rx-mono block">{tx.recipientAddress}</span>
+                <span className="rx-hint block" data-tone={recipientCheck.valid ? "positive" : "danger"}>
+                  {recipientCheck.valid ? "Checksum verified." : recipientCheck.message}
+                </span>
+              </LedgerStack>
+            </dl>
           </div>
 
-          {/* Right */}
-          <div className="lg:col-span-5 space-y-4">
-            <div className="bg-white rounded-2xl p-5 border border-black/5">
-              <h4 className="text-[10px] text-neutral-400 font-semibold uppercase mb-3">Recipient</h4>
-              <div>
-                <label className="text-[10px] text-neutral-400 font-semibold block mb-1">Stellar Public Key</label>
-                <div className={`rounded-lg px-3 py-2 ${recipientCheck.valid ? "bg-neutral-50" : "bg-red-50 border border-red-200"}`}>
-                  <code className={`text-[10px] break-all ${recipientCheck.valid ? "text-neutral-500" : "text-red-700"}`}>{tx.recipientAddress}</code>
+          <div className="mt-6 max-w-[520px]">
+            <Notice tone="caution">Double-check the recipient. Assets sent on Stellar can&apos;t be reversed.</Notice>
+          </div>
+        </section>
+
+        <aside aria-label="Sign and send">
+          <div className="rx-sheet rx-sheet-pad">
+            {!done ? (
+              <>
+                <h2 className="rx-h2">Sign and send</h2>
+                <div className="mt-4">
+                  <label className="rx-label" htmlFor="secret-key">Your Stellar secret key</label>
+                  <input
+                    id="secret-key"
+                    type="password"
+                    className="rx-input rx-mono"
+                    style={{ fontSize: 14 }}
+                    value={secretKey}
+                    onChange={(e) => setSecretKey(e.target.value)}
+                    placeholder="S…"
+                    autoComplete="off"
+                    spellCheck={false}
+                  />
+                  <p className="rx-hint">
+                    {`${NETWORK_LABEL} only. It signs this one transaction and isn't stored.`}
+                  </p>
                 </div>
-                {recipientCheck.valid ? (
-                  <p className="text-[10px] text-neutral-900 mt-1.5 flex items-center gap-1">
-                    <ShieldCheck size={12} className="shrink-0" />
-                    Checksum verified.
-                  </p>
-                ) : (
-                  <p role="alert" className="text-[10px] text-red-600 mt-1.5 flex items-start gap-1 leading-relaxed">
-                    <AlertCircle size={12} className="shrink-0 mt-0.5" />
-                    {recipientCheck.message} <Link href="/send" className="font-semibold underline">Go back and fix it</Link>.
-                  </p>
+
+                {status === "failed" && error && (
+                  <div className="mt-3">
+                    <Notice tone="danger">{error}</Notice>
+                  </div>
                 )}
-              </div>
-            </div>
 
-            <div className="bg-white rounded-2xl p-5 border border-black/5 space-y-3">
-              {status !== "confirmed" && (
-                <>
-                  <div>
-                    <label className="text-xs font-semibold text-neutral-600 block mb-1">Your Stellar secret key</label>
-                    <input
-                      type="password"
-                      value={secretKey}
-                      onChange={(e) => setSecretKey(e.target.value)}
-                      placeholder="S..."
-                      className="w-full px-3 py-2.5 rounded-xl border border-neutral-200 text-sm focus:ring-2 focus:ring-primary/20 outline-none"
-                    />
-                    <p className="text-[10px] text-neutral-400 mt-1">
-                      Testnet-only: used once to sign this transaction, never stored.
-                    </p>
-                  </div>
-                  <button
-                    onClick={handleConfirm}
-                    disabled={!secretKey.trim() || status === "submitting" || !recipientCheck.valid}
-                    className="w-full bg-primary text-white text-sm font-medium py-3.5 rounded-full flex items-center justify-center gap-2 hover:bg-neutral-800 transition-all disabled:opacity-50"
-                  >
-                    <Send size={16} />
-                    {status === "submitting" ? "Signing & submitting…" : "Confirm & Send"}
+                <div className="rx-glow mt-6" data-off={!canSign}>
+                  <button type="button" className="rx-btn rx-btn-primary rx-btn-block" onClick={handleConfirm} disabled={!canSign}>
+                    {busy ? "Signing and sending…" : "Sign and send"}
                   </button>
-                  <Link
-                    href="/send"
-                    className="w-full block text-center bg-neutral-50 text-neutral-500 text-xs font-semibold py-3 rounded-xl border border-neutral-200 hover:bg-neutral-100 transition-all"
-                  >
-                    Cancel & Edit
-                  </Link>
-                </>
-              )}
-
-              {status === "failed" && (
-                <p className="text-xs text-red-600 bg-red-50 rounded-lg p-2.5">{error}</p>
-              )}
-
-              {status === "confirmed" && hash && (
-                <div className="space-y-2">
-                  <div className="flex items-center gap-1.5 text-neutral-900">
-                    <ShieldCheck size={16} />
-                    <span className="text-sm font-semibold">Transaction confirmed</span>
-                  </div>
-                  <button
-                    onClick={copyHash}
-                    className="w-full flex items-center justify-between gap-1.5 text-neutral-500 bg-neutral-50 rounded-lg px-3 py-2 hover:bg-neutral-100 transition-all"
-                  >
-                    <span className="flex items-center gap-1.5 text-[10px] truncate">
-                      <Link2 size={14} /> {hash}
-                    </span>
-                    {copied ? <Check size={14} className="text-neutral-900 shrink-0" /> : <Copy size={14} className="shrink-0" />}
-                  </button>
-                  <Link href="/activity" className="w-full block text-center bg-primary text-white text-xs font-semibold py-2.5 rounded-full">
-                    View in Activity
-                  </Link>
                 </div>
-              )}
-            </div>
+                <Link href="/send" className="rx-btn rx-btn-quiet rx-btn-block mt-5">
+                  Edit transfer
+                </Link>
+              </>
+            ) : (
+              hash && (
+                <>
+                  <Notice tone="positive">Confirmed on the Stellar network.</Notice>
+                  <dl className="mt-4">
+                    <LedgerStack label="Transaction hash" action={<CopyButton value={hash} label="Copy transaction hash" />}>
+                      <span className="rx-mono" title={hash}>{truncateMiddle(hash, 12, 12)}</span>
+                    </LedgerStack>
+                  </dl>
+                  <a href={explorerTxUrl(hash)} target="_blank" rel="noreferrer" className="rx-link mt-1 inline-flex items-center gap-1.5 text-[14px]">
+                    View on Stellar Expert <ExternalLink size={13} aria-hidden="true" />
+                  </a>
+                  <div className="mt-6 flex flex-col gap-2">
+                    <Link href="/activity" className="rx-btn rx-btn-primary rx-btn-block">View in Activity</Link>
+                    <Link href="/send" className="rx-btn rx-btn-secondary rx-btn-block">Send another</Link>
+                  </div>
+                </>
+              )
+            )}
           </div>
-        </div>
+        </aside>
       </div>
-    </main>
+    </div>
   );
 }
 

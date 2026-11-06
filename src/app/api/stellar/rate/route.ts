@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
-import { getRate } from "@/lib/rates";
+import { getRate, RateUnavailableError } from "@/lib/rates";
 import { rateQuerySchema } from "@/lib/validations";
 import { successResponse, errorResponse } from "@/lib/api-response";
 
@@ -36,6 +36,7 @@ export async function GET(request: NextRequest) {
       source: result.source,
     });
   } catch (err) {
+    if (err instanceof RateUnavailableError) return errorResponse(err.message, 503);
     console.error("Rate fetch error:", err);
     return errorResponse("Failed to fetch exchange rate", 500);
   }

@@ -1,7 +1,9 @@
 import { NextRequest } from "next/server";
 import { data } from "@/lib/data";
 import { getCurrentUser } from "@/lib/auth";
-import { buildSendTransaction, fetchRate } from "@/lib/stellar";
+import { buildSendTransaction, resolveAsset, server, NETWORK_PASSPHRASE } from "@/lib/stellar";
+import { discoverRoutes } from "@/lib/routing";
+import { applySlippageBps, fromStroops, toStroops } from "@/lib/amounts";
 import { stellarSendSchema } from "@/lib/validations";
 import { successResponse, errorResponse, unauthorizedResponse } from "@/lib/api-response";
 import {
@@ -23,7 +25,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (!user.stellarPublicKey) {
-      return errorResponse("User has no Stellar account. Create one via /api/stellar/account first.", 400);
+      return errorResponse("Connect a Stellar wallet before sending.", 400);
     }
 
     // Rate limit per user
@@ -51,28 +53,45 @@ export async function POST(request: NextRequest) {
       return errorResponse("Invalid input detected", 400);
     }
 
-    // Validate amount > 0
-    const amountNum = parseFloat(amount);
-    if (isNaN(amountNum) || amountNum <= 0) {
-      return errorResponse("Amount must be a positive number", 400);
-    }
+    const from = fromAsset.toUpperCase();
+    const to = toAsset.toUpperCase();
 
-    // Server-side price calculation - never trust client-side amounts
-    const rate = await fetchRate(fromAsset.toUpperCase(), toAsset.toUpperCase());
-    const toAmount = (amountNum * parseFloat(rate)).toFixed(2);
+    // The receive amount comes from on-chain path finding, never from a client
+    // value or a fiat reference rate.
+    let sourceAsset, destAsset;
+    try {
+      sourceAsset = resolveAsset(from);
+      destAsset = resolveAsset(to);
+    } catch (err) {
+      return errorResponse(err instanceof Error ? err.message : "Unsupported asset", 422);
+    }
+    const discovery = await discoverRoutes(
+      { from, to, amount, sourceAsset, destAsset },
+      server as unknown as Parameters<typeof discoverRoutes>[1]
+    );
+    if (!discovery.best) {
+      return errorResponse(`No route found from ${from} to ${to} for this amount.`, 422);
+    }
+    const best = discovery.best;
+    const slippageBps = 100; // 1%: the transaction fails on-chain if the recipient would get less
+    const destMin = fromStroops(applySlippageBps(toStroops(best.receiveAmount), slippageBps));
+    const toAmount = best.receiveAmount;
+
     const xdr = await buildSendTransaction({
       sourcePublicKey: user.stellarPublicKey,
-      fromAsset: fromAsset.toUpperCase(),
-      toAsset: toAsset.toUpperCase(),
+      fromAsset: from,
+      toAsset: to,
       fromAmount: amount,
-      toAmount,
+      destMin,
       recipientAddress: cleanRecipient,
+      path: best.pathAssets,
+      feeStroops: best.cost.networkFeeStroops,
     });
 
     const transaction = await data.transactions.create({
       userId: user.id,
-      fromAsset: fromAsset.toUpperCase(),
-      toAsset: toAsset.toUpperCase(),
+      fromAsset: from,
+      toAsset: to,
       fromAmount: amount,
       toAmount,
       recipientAddress: cleanRecipient,
@@ -85,10 +104,14 @@ export async function POST(request: NextRequest) {
     return successResponse({
       transactionId: transaction.id,
       xdr,
-      fromAsset: fromAsset.toUpperCase(),
-      toAsset: toAsset.toUpperCase(),
+      networkPassphrase: NETWORK_PASSPHRASE,
+      fromAsset: from,
+      toAsset: to,
       fromAmount: amount,
       toAmount,
+      destMin,
+      route: best.hops,
+      cost: best.cost,
       recipientAddress: cleanRecipient,
     }, 201);
   } catch (err: unknown) {

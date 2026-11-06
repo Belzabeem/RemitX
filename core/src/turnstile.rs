@@ -22,12 +22,8 @@ impl TurnstileDecision {
         match self {
             TurnstileDecision::Skip => (true, None),
             TurnstileDecision::Verify => (true, None),
-            TurnstileDecision::RejectConfigured => {
-                (false, Some("Verification is not configured"))
-            }
-            TurnstileDecision::RejectMissingToken => {
-                (false, Some("Missing verification token"))
-            }
+            TurnstileDecision::RejectConfigured => (false, Some("Verification is not configured")),
+            TurnstileDecision::RejectMissingToken => (false, Some("Missing verification token")),
         }
     }
 }
@@ -86,10 +82,7 @@ mod tests {
 
     #[test]
     fn development_no_secret_skips() {
-        assert_eq!(
-            decide(None, Some("token"), false),
-            TurnstileDecision::Skip
-        );
+        assert_eq!(decide(None, Some("token"), false), TurnstileDecision::Skip);
     }
 
     #[test]

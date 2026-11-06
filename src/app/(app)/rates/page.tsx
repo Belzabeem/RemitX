@@ -1,118 +1,192 @@
 "use client";
 
-import { useEffect, useState, useRef, useCallback } from "react";
-import { BellPlus, Pencil, Trash2, CheckCircle2, X, ArrowUp, ArrowDown } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { RefreshCw, X } from "lucide-react";
+import PageHeader from "@/components/ui/PageHeader";
+import Notice from "@/components/ui/Notice";
+import { Ledger, LedgerRow } from "@/components/ui/Ledger";
+import { formatAmount, formatRate, formatTime, sanitizeDecimal } from "@/lib/format";
 
 interface RateData {
   rate: string;
   fromAsset: string;
   toAsset: string;
   fetchedAt: string;
-  source: string;
+  source: "cache" | "api" | "fallback";
 }
 
-interface RateHistoryPoint {
+interface Point {
   rate: number;
   at: number;
 }
 
-const ASSET_PAIRS = [
-  { from: "USDC", to: "NGN", label: "USDC/NGN" },
-  { from: "XLM", to: "USDC", label: "XLM/USDC" },
-  { from: "EURC", to: "USDC", label: "EURC/USDC" },
-  { from: "USD", to: "EUR", label: "USD/EUR" },
-  { from: "USDC", to: "KES", label: "USDC/KES" },
-  { from: "USDC", to: "GHS", label: "USDC/GHS" },
-];
+interface Watch {
+  id: string;
+  pair: string;
+  direction: "above" | "below";
+  threshold: number;
+  triggeredAt?: number;
+  triggeredRate?: number;
+}
 
-const POLL_MS = 12_000; // real-time-feeling refresh without hammering the free rate API (5-min server cache absorbs the rest)
-const HISTORY_LIMIT = 30; // rolling window of actually-observed rates since this page opened
+const PAIRS = ["USD/NGN", "USD/PHP", "USD/GBP", "GBP/NGN", "XLM/USDC", "USDC/NGN"];
+const POLL_MS = 12_000;
+const HISTORY_LIMIT = 40;
+const WATCH_KEY = "remitx:rate-watches";
+
+const split = (pair: string) => pair.split("/") as [string, string];
+
+function Sparkline({ points }: { points: Point[] }) {
+  if (points.length < 2) return <span className="text-faint">{"\u2013"}</span>;
+  const values = points.map((p) => p.rate);
+  const min = Math.min(...values);
+  const range = Math.max(...values) - min || 1;
+  const d = points
+    .map((p, i) => `${i === 0 ? "M" : "L"}${(i / (points.length - 1)) * 80},${18 - ((p.rate - min) / range) * 16 - 1}`)
+    .join(" ");
+  return (
+    <svg width="80" height="18" viewBox="0 0 80 18" aria-hidden="true">
+      <path d={d} fill="none" stroke="#111" strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function Chart({ points }: { points: Point[] }) {
+  if (points.length < 2) {
+    return (
+      <div className="grid h-[220px] place-items-center text-center text-[14px] text-muted">
+        <p className="max-w-[34ch]">The chart fills in as new rates arrive. Rates refresh every {POLL_MS / 1000} seconds.</p>
+      </div>
+    );
+  }
+  const values = points.map((p) => p.rate);
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const range = max - min || 1;
+  const W = 800;
+  const H = 220;
+  const xy = points.map((p, i) => [(i / (points.length - 1)) * W, H - 16 - ((p.rate - min) / range) * (H - 32)] as const);
+  const line = xy.map(([x, y], i) => `${i === 0 ? "M" : "L"}${x},${y}`).join(" ");
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="h-[220px] w-full" role="img" aria-label="Rate observed since you opened this page">
+      <line x1="0" x2={W} y1={H - 1} y2={H - 1} stroke="#e4e4df" strokeWidth="1" vectorEffect="non-scaling-stroke" />
+      <path d={`${line} L${W},${H} L0,${H} Z`} fill="rgba(17,17,17,0.05)" />
+      <path d={line} fill="none" stroke="#111" strokeWidth="2" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
+    </svg>
+  );
+}
 
 export default function RatesPage() {
-  const [activePair, setActivePair] = useState("USDC/NGN");
+  const [active, setActive] = useState("USD/NGN");
   const [rates, setRates] = useState<Record<string, RateData>>({});
-  const [prevRates, setPrevRates] = useState<Record<string, number>>({});
-  const [flashPair, setFlashPair] = useState<string | null>(null);
-  const [history, setHistory] = useState<Record<string, RateHistoryPoint[]>>({});
-  const [liquidity, setLiquidity] = useState<{ reserves: { asset: string; amount: string }[] } | null>(null);
+  const [history, setHistory] = useState<Record<string, Point[]>>({});
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const ratesRef = useRef(rates);
+  const [liquidity, setLiquidity] = useState<{ reserves: { asset: string; amount: string }[] } | null>(null);
+
+  const [watches, setWatches] = useState<Watch[]>([]);
+  const [fired, setFired] = useState<string[]>([]);
+  const [wPair, setWPair] = useState("USD/NGN");
+  const [wDirection, setWDirection] = useState<"above" | "below">("above");
+  const [wThreshold, setWThreshold] = useState("");
+  const watchesRef = useRef<Watch[]>([]);
+  const watchesLoaded = useRef(false);
+
+  // Saved watches live in this browser only.
   useEffect(() => {
-    ratesRef.current = rates;
-  }, [rates]);
-
-  const fetchAllRates = useCallback(async () => {
-    setError(null);
-    const results: Record<string, RateData> = {};
-    let anySuccess = false;
-
-    for (const pair of ASSET_PAIRS) {
+    const id = setTimeout(() => {
       try {
-        const res = await fetch(`/api/stellar/rate?from=${pair.from}&to=${pair.to}`);
-        const json = await res.json();
-        if (json.success) {
-          results[pair.label] = json.data;
-          anySuccess = true;
+        const raw = localStorage.getItem(WATCH_KEY);
+        if (raw) {
+          const parsed = JSON.parse(raw) as Watch[];
+          watchesRef.current = parsed;
+          setWatches(parsed);
         }
       } catch {
-        // Keep partial results
+        // Corrupt or blocked storage: start with none.
       }
-    }
+      watchesLoaded.current = true;
+    }, 0);
+    return () => clearTimeout(id);
+  }, []);
 
-    if (!anySuccess) {
-      setError("Couldn't reach the rate service. Showing the last known values, if any.");
+  const saveWatches = (next: Watch[]) => {
+    watchesRef.current = next;
+    setWatches(next);
+    try {
+      localStorage.setItem(WATCH_KEY, JSON.stringify(next));
+    } catch {
+      // Storage unavailable: watches last for this visit only.
+    }
+  };
+
+  const poll = useCallback(async () => {
+    setRefreshing(true);
+    const settled = await Promise.allSettled(
+      PAIRS.map(async (pair) => {
+        const [from, to] = split(pair);
+        const res = await fetch(`/api/stellar/rate?from=${from}&to=${to}`);
+        const json = await res.json();
+        if (!res.ok || !json.success) throw new Error("no rate");
+        return [pair, json.data as RateData] as const;
+      })
+    );
+    const next: Record<string, RateData> = {};
+    for (const r of settled) if (r.status === "fulfilled") next[r.value[0]] = r.value[1];
+
+    if (Object.keys(next).length === 0) {
+      setError("Couldn't reach the rate service. Showing the last values we have, if any.");
     } else {
-      // Track which pair actually moved since the last poll, for the flash + delta indicator
-      const previous = ratesRef.current;
-      let movedPair: string | null = null;
-      const nextPrev: Record<string, number> = {};
-      for (const [label, data] of Object.entries(results)) {
-        const prior = previous[label];
-        if (prior) {
-          nextPrev[label] = parseFloat(prior.rate);
-          if (prior.rate !== data.rate) movedPair = label;
+      setError(null);
+      setRates((prev) => ({ ...prev, ...next }));
+      const now = Date.now();
+      setHistory((prev) => {
+        const out = { ...prev };
+        for (const [pair, data] of Object.entries(next)) {
+          out[pair] = [...(out[pair] ?? []), { rate: parseFloat(data.rate), at: now }].slice(-HISTORY_LIMIT);
         }
-      }
-      setPrevRates((p) => ({ ...p, ...nextPrev }));
-      if (movedPair) {
-        setFlashPair(movedPair);
-        setTimeout(() => setFlashPair(null), 900);
-      }
-
-      setHistory((h) => {
-        const next = { ...h };
-        for (const [label, data] of Object.entries(results)) {
-          const point: RateHistoryPoint = { rate: parseFloat(data.rate), at: Date.now() };
-          const series = [...(next[label] || []), point].slice(-HISTORY_LIMIT);
-          next[label] = series;
-        }
-        return next;
+        return out;
       });
-    }
 
-    setRates(results);
+      // Check saved watches against what just came in.
+      const messages: string[] = [];
+      const updated = watchesRef.current.map((w) => {
+        const data = next[w.pair];
+        if (!data || w.triggeredAt) return w;
+        const current = parseFloat(data.rate);
+        const hit = w.direction === "above" ? current >= w.threshold : current <= w.threshold;
+        if (!hit) return w;
+        messages.push(`${w.pair} is ${w.direction === "above" ? "above" : "below"} ${formatRate(w.threshold)} (now ${formatRate(current)}).`);
+        return { ...w, triggeredAt: now, triggeredRate: current };
+      });
+      if (messages.length > 0) {
+        if (watchesLoaded.current) saveWatches(updated);
+        setFired((prev) => [...messages, ...prev]);
+      }
+    }
     setLoading(false);
+    setRefreshing(false);
   }, []);
 
   useEffect(() => {
-    let ignore = false;
-    (async () => {
-      await fetchAllRates();
-      if (ignore) return;
-    })();
-    const interval = setInterval(fetchAllRates, POLL_MS);
+    const first = setTimeout(() => void poll(), 0);
+    const repeat = setInterval(() => void poll(), POLL_MS);
     return () => {
-      ignore = true;
-      clearInterval(interval);
+      clearTimeout(first);
+      clearInterval(repeat);
     };
-  }, [fetchAllRates]);
+  }, [poll]);
 
-  // Real liquidity pool reserves for the active pair's base asset
+  // Liquidity pool for the selected pair's base asset, when Stellar has one.
   useEffect(() => {
-    const base = activePair.split("/")[0];
+    const base = split(active)[0];
+    if (!["XLM", "USDC", "EURC"].includes(base)) {
+      const id = setTimeout(() => setLiquidity(null), 0);
+      return () => clearTimeout(id);
+    }
     let ignore = false;
-    (async () => {
+    const id = setTimeout(async () => {
       try {
         const res = await fetch(`/api/stellar/liquidity?asset=${base}`);
         const json = await res.json();
@@ -120,487 +194,242 @@ export default function RatesPage() {
       } catch {
         if (!ignore) setLiquidity(null);
       }
-    })();
+    }, 0);
     return () => {
       ignore = true;
+      clearTimeout(id);
     };
-  }, [activePair]);
+  }, [active]);
 
+  const current = rates[active];
+  const points = useMemo(() => history[active] ?? [], [history, active]);
+  const first = points[0]?.rate;
+  const last = points[points.length - 1]?.rate;
+  const change = first && last && points.length > 1 ? ((last - first) / first) * 100 : null;
+  const low = points.length ? Math.min(...points.map((p) => p.rate)) : null;
+  const high = points.length ? Math.max(...points.map((p) => p.rate)) : null;
+  const [activeFrom, activeTo] = split(active);
 
-  // Intersection observer for animations
-  useEffect(() => {
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            entry.target.classList.add("animate-scale-cascade");
-            entry.target.classList.remove("opacity-0");
-            observer.unobserve(entry.target);
-          }
-        });
-      },
-      { threshold: 0.1 }
-    );
-    document
-      .querySelectorAll(".animate-on-scroll")
-      .forEach((el) => observer.observe(el));
-    return () => observer.disconnect();
-  }, [rates]);
-
-  const activeRate = rates[activePair];
-  const activePairConfig = ASSET_PAIRS.find((p) => p.label === activePair);
-  const priorRate = prevRates[activePair];
-  const currentRateNum = activeRate ? parseFloat(activeRate.rate) : null;
-  const pctChange =
-    priorRate && currentRateNum !== null ? ((currentRateNum - priorRate) / priorRate) * 100 : null;
-  const activeHistory = history[activePair] || [];
+  const addWatch = (e: React.FormEvent) => {
+    e.preventDefault();
+    const threshold = parseFloat(wThreshold);
+    if (!threshold || threshold <= 0) return;
+    saveWatches([
+      ...watchesRef.current,
+      { id: `${Date.now()}`, pair: wPair, direction: wDirection, threshold },
+    ]);
+    setWThreshold("");
+  };
 
   return (
-    <main className="min-h-screen bg-neutral-50/50">
-      <div className="max-w-6xl mx-auto px-4 lg:px-6 py-6 lg:py-8 space-y-4">
-        {/* Header */}
-        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-end gap-4 animate-slide-blur">
-          <div>
-            <h2 className="text-xl lg:text-2xl font-medium tracking-[-0.03em] text-primary">
-              Rates & DEX Monitor
-            </h2>
-            <p className="text-sm text-neutral-500">
-              Real-time Stellar DEX spreads and automated threshold alerts.
-            </p>
-          </div>
-          <div className="flex gap-1.5 bg-neutral-100 p-1 rounded-lg overflow-x-auto">
-            {ASSET_PAIRS.map((pair) => (
-              <button
-                key={pair.label}
-                onClick={() => setActivePair(pair.label)}
-                className={`px-3 py-1.5 rounded-md text-[10px] font-semibold whitespace-nowrap transition-all ${
-                  activePair === pair.label
-                    ? "bg-white shadow-sm text-primary"
-                    : "text-neutral-500 hover:bg-white"
-                }`}
-              >
-                {pair.label}
-              </button>
-            ))}
-          </div>
+    <div className="rx-page">
+      <PageHeader
+        title="Rates"
+        description="Live rates for the corridors RemitX supports, and the Stellar assets behind them."
+        actions={
+          <button type="button" className="rx-btn rx-btn-secondary rx-btn-sm" onClick={() => void poll()} disabled={refreshing}>
+            <RefreshCw size={14} className={refreshing ? "rx-spin" : ""} aria-hidden="true" /> Refresh
+          </button>
+        }
+      />
+
+      {error && (
+        <div className="mb-8">
+          <Notice tone="caution">{error}</Notice>
         </div>
+      )}
+      {fired.length > 0 && (
+        <div className="mb-8 space-y-2">
+          {fired.map((m, i) => (
+            <Notice key={`${m}-${i}`} tone="positive" role="status">
+              {m}
+            </Notice>
+          ))}
+        </div>
+      )}
 
-        {error && (
-          <div className="px-4 py-2.5 rounded-xl bg-amber-50 text-amber-700 text-xs font-medium">
-            {error}
-          </div>
-        )}
-
-        {/* Chart + Stats */}
-        <section className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          <div className="lg:col-span-2 bg-white rounded-2xl p-5 border border-black/5 opacity-0 animate-on-scroll">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-4">
-              <div>
-                {loading && !activeRate ? (
-                  <div className="animate-pulse">
-                    <div className="h-7 w-32 bg-neutral-200 rounded mb-1"></div>
-                    <div className="h-3 w-40 bg-neutral-200 rounded"></div>
-                  </div>
-                ) : activeRate ? (
-                  <>
-                    <div className="flex items-center gap-1.5">
-                      <span
-                        className={`text-xl font-semibold transition-colors duration-500 ${
-                          flashPair === activePair
-                            ? pctChange !== null && pctChange > 0
-                              ? "text-neutral-900"
-                              : pctChange !== null && pctChange < 0
-                              ? "text-red-600"
-                              : "text-neutral-800"
-                            : "text-neutral-800"
-                        }`}
-                      >
-                        {parseFloat(activeRate.rate).toLocaleString(undefined, {
-                          minimumFractionDigits: 2,
-                          maximumFractionDigits: 6,
-                        })}
-                      </span>
-                      {pctChange !== null && Math.abs(pctChange) > 0.0001 && (
-                        <span
-                          className={`flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded ${
-                            pctChange > 0 ? "bg-neutral-100 text-neutral-800" : "bg-red-50 text-red-700"
-                          }`}
-                        >
-                          {pctChange > 0 ? <ArrowUp size={11} /> : <ArrowDown size={11} />}
-                          {Math.abs(pctChange).toFixed(3)}%
-                        </span>
-                      )}
-                      {activeRate.source === "fallback" && (
-                        <span className="text-[9px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-semibold">
-                          stale
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-[10px] text-neutral-400 uppercase font-semibold">
-                      Current {activeRate.fromAsset}/{activeRate.toAsset} Rate
-                    </p>
-                    <p className="text-[9px] text-neutral-400 mt-1">
-                      Updated{" "}
-                      {new Date(activeRate.fetchedAt).toLocaleTimeString()}
-                    </p>
-                  </>
-                ) : (
-                  <>
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-xl font-semibold text-neutral-400">
-                        --
-                      </span>
-                    </div>
-                    <p className="text-[10px] text-neutral-400 uppercase font-semibold">
-                      {activePairConfig
-                        ? `${activePairConfig.from}/${activePairConfig.to} rate unavailable`
-                        : "Rate unavailable"}
-                    </p>
-                  </>
-                )}
-              </div>
-              <div className="flex items-center gap-1.5">
-                <span
-                  className={`w-2 h-2 rounded-full animate-pulse ${
-                    loading ? "bg-amber-400" : "bg-secondary"
-                  }`}
-                ></span>
-                <span className="text-[10px] text-neutral-400">
-                  {loading ? "Loading..." : `Live, refreshing every ${POLL_MS / 1000}s`}
-                </span>
-              </div>
-            </div>
-            <div className="h-[180px] lg:h-[250px] w-full">
-              {activeHistory.length < 2 ? (
-                <div className="flex items-center justify-center h-full text-xs text-neutral-400">
-                  Watching for rate changes - chart fills in as updates come in.
-                </div>
-              ) : (
-                (() => {
-                  const values = activeHistory.map((p) => p.rate);
-                  const min = Math.min(...values);
-                  const max = Math.max(...values);
-                  const range = max - min || 1;
-                  const width = 800;
-                  const height = 200;
-                  const step = width / (activeHistory.length - 1);
-                  const points = activeHistory.map((p, i) => {
-                    const x = i * step;
-                    const y = height - ((p.rate - min) / range) * (height - 20) - 10;
-                    return `${x},${y}`;
-                  });
-                  const linePath = `M${points.join(" L")}`;
-                  const areaPath = `${linePath} L${width},${height} L0,${height} Z`;
-                  return (
-                    <svg className="w-full h-full" preserveAspectRatio="none" viewBox={`0 0 ${width} ${height}`}>
-                      <defs>
-                        <linearGradient id="cg" x1="0" x2="0" y1="0" y2="1">
-                          <stop offset="0%" stopColor="#111111" stopOpacity="0.2" />
-                          <stop offset="100%" stopColor="#111111" stopOpacity="0" />
-                        </linearGradient>
-                      </defs>
-                      <path d={areaPath} fill="url(#cg)" />
-                      <path d={linePath} fill="none" stroke="#111111" strokeLinecap="round" strokeWidth="2.5" />
-                    </svg>
-                  );
-                })()
-              )}
-            </div>
-            <div className="flex justify-between mt-3 text-[10px] text-neutral-400">
-              {activeHistory.length >= 2 ? (
-                <>
-                  <span>{new Date(activeHistory[0].at).toLocaleTimeString()}</span>
-                  <span>Now</span>
-                </>
-              ) : (
-                <span>Live rates observed since you opened this page</span>
-              )}
-            </div>
-          </div>
-          <div
-            className="space-y-4 opacity-0 animate-on-scroll"
-            style={{ animationDelay: "100ms" }}
-          >
-            <div className="bg-primary text-white rounded-3xl p-5 shadow-md relative overflow-hidden flex flex-col justify-between h-full">
-              <div className="relative z-10">
-                <h3 className="text-[10px] uppercase tracking-widest opacity-80 mb-1 font-semibold">
-                  On-Chain Liquidity ({activePairConfig?.from})
-                </h3>
-                <p className="text-lg font-semibold">
-                  {liquidity
-                    ? `${parseFloat(liquidity.reserves[0]?.amount || "0").toLocaleString(undefined, { maximumFractionDigits: 0 })} ${activePairConfig?.from}`
-                    : "No pool found"}
-                </p>
-              </div>
-              <div className="relative z-10 space-y-2.5 mt-4">
-                {activeRate ? (
-                  <>
-                    <div className="flex justify-between text-xs">
-                      <span className="opacity-70">Rate</span>
-                      <span className="font-semibold">
-                        {parseFloat(activeRate.rate).toLocaleString(undefined, {
-                          minimumFractionDigits: 2,
-                          maximumFractionDigits: 6,
-                        })}
-                      </span>
-                    </div>
-                    <div className="flex justify-between text-xs">
-                      <span className="opacity-70">Source</span>
-                      <span className="font-semibold capitalize">
-                        {activeRate.source === "cache" ? "cached" : "live"}
-                      </span>
-                    </div>
-                    {liquidity && (
-                      <div className="flex justify-between text-xs">
-                        <span className="opacity-70">Pool shares</span>
-                        <span className="font-semibold">{parseFloat(liquidity.reserves[1]?.amount || "0").toLocaleString(undefined, { maximumFractionDigits: 0 })} {liquidity.reserves[1]?.asset === "native" ? "XLM" : liquidity.reserves[1]?.asset?.split(":")[0]}</span>
-                      </div>
-                    )}
-                  </>
-                ) : (
-                  <>
-                    <div className="flex justify-between text-xs">
-                      <span className="opacity-70">Best Bid</span>
-                      <span className="font-semibold">--</span>
-                    </div>
-                    <div className="flex justify-between text-xs">
-                      <span className="opacity-70">Best Ask</span>
-                      <span className="font-semibold">--</span>
-                    </div>
-                  </>
-                )}
-              </div>
-              <div className="absolute -right-10 -bottom-10 w-40 h-40 bg-white/10 rounded-full blur-3xl"></div>
+      <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-12 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)] lg:gap-14">
+        {/* Watchlist */}
+        <section aria-label="Pairs">
+          <div className="rx-tablewrap">
+            <div className="rx-tablescroll">
+              <table className="rx-table">
+                <thead>
+                  <tr>
+                    <th scope="col">Pair</th>
+                    <th scope="col" className="num">Rate</th>
+                    <th scope="col" className="num hidden sm:table-cell">Since opened</th>
+                    <th scope="col" className="hidden sm:table-cell"><span className="sr-only">Trend</span></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {PAIRS.map((pair) => {
+                    const data = rates[pair];
+                    const pts = history[pair] ?? [];
+                    const delta = pts.length > 1 ? ((pts[pts.length - 1].rate - pts[0].rate) / pts[0].rate) * 100 : null;
+                    return (
+                      <tr key={pair} data-active={pair === active}>
+                        <td>
+                          <button type="button" className="rx-rowlink rx-rowbutton" onClick={() => setActive(pair)} aria-pressed={pair === active}>
+                            {pair}
+                          </button>
+                        </td>
+                        <td className="num whitespace-nowrap">
+                          {data ? formatRate(data.rate) : loading ? <span className="rx-skel ml-auto" style={{ width: 64, height: 14 }} /> : "\u2013"}
+                        </td>
+                        <td className="num hidden whitespace-nowrap text-muted sm:table-cell">
+                          {delta === null ? "\u2013" : `${delta > 0 ? "+" : ""}${delta.toFixed(3)}%`}
+                        </td>
+                        <td className="hidden sm:table-cell">
+                          <Sparkline points={pts} />
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
           </div>
         </section>
 
-        {/* Create Alert Form */}
-        <section
-          className="bg-white rounded-2xl border border-black/5 overflow-hidden opacity-0 animate-on-scroll"
-          style={{ animationDelay: "200ms" }}
-        >
-          <div className="p-4 lg:p-5 border-b border-neutral-200 bg-neutral-50">
-            <h3 className="text-sm font-semibold text-neutral-800">
-              Create New Rate Alert
-            </h3>
-          </div>
-          <form
-            className="p-4 lg:p-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4 items-end"
-            onSubmit={(e) => {
-              e.preventDefault();
-              const toast = document.getElementById("toast");
-              if (toast) {
-                toast.classList.remove("translate-y-20", "opacity-0");
-                toast.classList.add("translate-y-0", "opacity-100");
-                setTimeout(() => {
-                  toast.classList.add("translate-y-20", "opacity-0");
-                  toast.classList.remove("translate-y-0", "opacity-100");
-                }, 5000);
-              }
-            }}
-          >
-            <div className="space-y-1.5">
-              <label className="text-[10px] font-semibold text-neutral-500 uppercase">
-                Asset Pair
-              </label>
-              <select className="w-full bg-neutral-50 border border-neutral-200 rounded-lg p-2.5 text-xs focus:border-primary focus:ring-1 focus:ring-primary outline-none">
-                {ASSET_PAIRS.map((pair) => (
-                  <option key={pair.label}>{pair.label}</option>
-                ))}
-              </select>
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-[10px] font-semibold text-neutral-500 uppercase">
-                Condition
-              </label>
-              <select className="w-full bg-neutral-50 border border-neutral-200 rounded-lg p-2.5 text-xs focus:border-primary focus:ring-1 focus:ring-primary outline-none">
-                <option>Rises Above</option>
-                <option>Drops Below</option>
-                <option>Reaches Exactly</option>
-              </select>
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-[10px] font-semibold text-neutral-500 uppercase">
-                Threshold
-              </label>
-              <div className="relative">
-                <input
-                  className="w-full bg-neutral-50 border border-neutral-200 rounded-lg p-2.5 text-xs focus:border-primary focus:ring-1 focus:ring-primary outline-none pr-10"
-                  placeholder="Enter threshold"
-                  type="number"
-                  step="any"
-                />
-                <span className="absolute right-3 top-2.5 text-[10px] text-neutral-400 font-semibold">
-                  {activePair.split("/")[1] || "NGN"}
-                </span>
-              </div>
-            </div>
-            <div>
-              <button
-                className="w-full bg-primary text-white py-2.5 rounded-full text-xs font-semibold hover:opacity-95 transition-all flex items-center justify-center gap-1.5 active:scale-95"
-                type="submit"
-              >
-                <BellPlus size={14} />{" "}
-                Set Alert
-              </button>
-            </div>
-          </form>
-        </section>
+        {/* Detail */}
+        <section aria-label={`${active} detail`}>
+          <p className="rx-small">{active}</p>
+          <p className="rx-figure mt-1 text-[40px] md:text-[48px]">
+            {current ? formatRate(current.rate) : <span className="rx-skel inline-block" style={{ width: 180, height: 44 }} />}
+          </p>
+          <p className="rx-small mt-2">
+            {current ? `1 ${activeFrom} buys ${activeTo}. Updated ${formatTime(current.fetchedAt)}.` : "Waiting for the first rate."}
+          </p>
 
-        {/* Active Alerts */}
-        <section
-          className="bg-white rounded-2xl border border-black/5 overflow-hidden opacity-0 animate-on-scroll"
-          style={{ animationDelay: "300ms" }}
-        >
-          <div className="p-4 lg:p-5 flex justify-between items-center border-b border-neutral-200">
-            <h3 className="text-sm font-semibold text-neutral-800">
-              Active Rate Monitors
-            </h3>
-            <span className="bg-neutral-100 text-neutral-800 px-2.5 py-0.5 rounded-full text-[10px] font-semibold">
-              3 Active
-            </span>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-left">
-              <thead>
-                <tr className="bg-neutral-50 text-[10px] text-neutral-400 uppercase font-semibold">
-                  <th className="px-4 lg:px-5 py-3">Pair</th>
-                  <th className="px-4 lg:px-5 py-3 hidden sm:table-cell">
-                    Condition
-                  </th>
-                  <th className="px-4 lg:px-5 py-3">Threshold</th>
-                  <th className="px-4 lg:px-5 py-3 hidden md:table-cell">
-                    Current
-                  </th>
-                  <th className="px-4 lg:px-5 py-3">Status</th>
-                  <th className="px-4 lg:px-5 py-3 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-neutral-100">
-                {[
-                  { p1: "USDC", p2: "NGN", cond: "Rises Above", th: "1,650.00", st: "Monitoring", sCls: "bg-neutral-100 text-neutral-800" },
-                  { p1: "XLM", p2: "USDC", cond: "Drops Below", th: "0.1042", st: "Monitoring", sCls: "bg-neutral-100 text-neutral-800" },
-                  { p1: "EURC", p2: "USDC", cond: "Reaches Exactly", th: "1.0900", st: "Near Hit", sCls: "bg-red-50 text-red-700" },
-                ].map((a, i) => {
-                  const label = `${a.p1}/${a.p2}`;
-                  const live = rates[label];
-                  const diff = live
-                    ? (
-                        (parseFloat(live.rate) -
-                          parseFloat(a.th.replace(/,/g, ""))) /
-                        parseFloat(a.th.replace(/,/g, "")) *
-                        100
-                      ).toFixed(2)
-                    : null;
+          {current?.source === "fallback" && (
+            <div className="mt-4">
+              <Notice tone="caution">This is a built-in fallback value because live sources didn&apos;t respond. Don&apos;t rely on it for a transfer.</Notice>
+            </div>
+          )}
 
+          <div className="mt-6">
+            <Chart points={points} />
+            <div className="mt-2 flex justify-between text-[13px] text-muted">
+              <span>{points.length > 1 ? formatTime(points[0].at) : "Since you opened this page"}</span>
+              <span>{points.length > 1 ? "Now" : ""}</span>
+            </div>
+          </div>
+
+          {points.length > 1 && low !== null && high !== null && (
+            <Ledger>
+              <LedgerRow label="Change since opened">{change !== null ? `${change > 0 ? "+" : ""}${change.toFixed(3)}%` : "\u2013"}</LedgerRow>
+              <LedgerRow label="Low">{formatRate(low)}</LedgerRow>
+              <LedgerRow label="High">{formatRate(high)}</LedgerRow>
+            </Ledger>
+          )}
+
+          {liquidity && liquidity.reserves.length > 1 && (
+            <div className="mt-6">
+              <h3 className="rx-h2">Stellar liquidity pool</h3>
+              <Ledger>
+                {liquidity.reserves.map((r) => {
+                  const code = r.asset === "native" ? "XLM" : r.asset.split(":")[0];
                   return (
-                    <tr
-                      key={i}
-                      className="hover:bg-neutral-50 transition-all duration-200"
-                    >
-                      <td className="px-4 lg:px-5 py-3">
-                        <div className="flex items-center gap-2.5">
-                          <div className="flex -space-x-1.5">
-                            <div
-                              className={`w-7 h-7 rounded-full ${
-                                i === 0
-                                  ? "bg-primary"
-                                  : i === 1
-                                  ? "bg-neutral-200 text-neutral-800"
-                                  : "bg-neutral-900"
-                              } flex items-center justify-center text-[8px] text-white border-2 border-white`}
-                            >
-                              {a.p1}
-                            </div>
-                            <div className="w-7 h-7 rounded-full bg-secondary flex items-center justify-center text-[8px] text-white border-2 border-white">
-                              {a.p2}
-                            </div>
-                          </div>
-                          <span className="text-xs font-semibold text-neutral-700">
-                            {label}
-                          </span>
-                        </div>
-                      </td>
-                      <td className="px-4 lg:px-5 py-3 text-xs text-neutral-500 hidden sm:table-cell">
-                        {a.cond}
-                      </td>
-                      <td className="px-4 lg:px-5 py-3 text-xs font-semibold text-neutral-700">
-                        {a.th}
-                      </td>
-                      <td className="px-4 lg:px-5 py-3 hidden md:table-cell">
-                        <span
-                          className={`text-xs font-semibold ${
-                            diff !== null && parseFloat(diff) > 0
-                              ? "text-secondary"
-                              : diff !== null && parseFloat(diff) < 0
-                              ? "text-red-500"
-                              : "text-neutral-500"
-                          }`}
-                        >
-                          {live
-                            ? `${diff !== null ? (parseFloat(diff) > 0 ? "+" : "") + diff + "%" : "--"}`
-                            : "loading..."}
-                        </span>
-                      </td>
-                      <td className="px-4 lg:px-5 py-3">
-                        <span
-                          className={`px-2 py-0.5 rounded text-[9px] font-semibold uppercase ${a.sCls}`}
-                        >
-                          {a.st}
-                        </span>
-                      </td>
-                      <td className="px-4 lg:px-5 py-3 text-right">
-                        <div className="flex justify-end gap-1">
-                          <button className="p-1 text-neutral-400 hover:text-primary hover:bg-neutral-100 rounded-lg transition-all">
-                            <Pencil size={14} />
-                          </button>
-                          <button className="p-1 text-neutral-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all">
-                            <Trash2 size={14} />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
+                    <LedgerRow key={r.asset} label={code}>
+                      {formatAmount(r.amount, code).replace(/\.\d+$/, "")}
+                    </LedgerRow>
                   );
                 })}
-              </tbody>
-            </table>
-          </div>
-          <div className="p-3 border-t border-neutral-200 text-center">
-            <button className="text-[10px] text-primary font-semibold hover:underline">
-              View All Alert History
-            </button>
-          </div>
+              </Ledger>
+            </div>
+          )}
         </section>
       </div>
 
-      {/* Toast */}
-      <div
-        className="fixed bottom-6 right-6 translate-y-20 opacity-0 transition-all duration-500 z-[100]"
-        id="toast"
-      >
-        <div className="bg-neutral-900 text-white px-5 py-3 rounded-xl shadow-2xl flex items-center gap-3">
-          <CheckCircle2 size={20} className="text-neutral-500" />
-          <div>
-            <p className="text-xs font-semibold">Alert Created</p>
-            <p className="text-[10px] opacity-80">
-              We will notify you at the threshold
-            </p>
-          </div>
-          <button
-            className="ml-2 opacity-60 hover:opacity-100"
-            onClick={() => {
-              const t = document.getElementById("toast");
-              if (t) {
-                t.classList.add("translate-y-20", "opacity-0");
-                t.classList.remove("translate-y-0", "opacity-100");
-              }
-            }}
-          >
-            <X size={14} />
-          </button>
+      {/* Watches */}
+      <section className="rx-section" aria-labelledby="watch-heading">
+        <div className="rx-sectionhead">
+          <h2 id="watch-heading" className="rx-h2">Rate watches</h2>
         </div>
-      </div>
-    </main>
+        <p className="mb-5 max-w-[60ch] text-[14.5px] leading-[22px] text-muted">
+          Get a notice here when a pair crosses a level. Watches are saved in this browser and checked while this page is open.
+        </p>
+
+        <form onSubmit={addWatch} className="flex flex-wrap items-end gap-3">
+          <div className="w-[calc(50%-6px)] sm:w-[150px]">
+            <label className="rx-label" htmlFor="watch-pair">Pair</label>
+            <select id="watch-pair" className="rx-select" value={wPair} onChange={(e) => setWPair(e.target.value)}>
+              {PAIRS.map((p) => (
+                <option key={p}>{p}</option>
+              ))}
+            </select>
+          </div>
+          <div className="w-[calc(50%-6px)] sm:w-[160px]">
+            <label className="rx-label" htmlFor="watch-direction">When it</label>
+            <select id="watch-direction" className="rx-select" value={wDirection} onChange={(e) => setWDirection(e.target.value as "above" | "below")}>
+              <option value="above">Rises above</option>
+              <option value="below">Falls below</option>
+            </select>
+          </div>
+          <div className="w-[calc(50%-6px)] sm:w-[160px]">
+            <label className="rx-label" htmlFor="watch-threshold">Level</label>
+            <input
+              id="watch-threshold"
+              className="rx-input"
+              inputMode="decimal"
+              placeholder={rates[wPair] ? formatRate(rates[wPair].rate) : "0.00"}
+              value={wThreshold}
+              onChange={(e) => setWThreshold(sanitizeDecimal(e.target.value, 6))}
+            />
+          </div>
+          <button type="submit" className="rx-btn rx-btn-primary" disabled={!parseFloat(wThreshold)}>
+            Add watch
+          </button>
+        </form>
+
+        {watches.length > 0 && (
+          <div className="rx-tablewrap mt-6">
+            <div className="rx-tablescroll">
+              <table className="rx-table">
+                <thead>
+                  <tr>
+                    <th scope="col">Pair</th>
+                    <th scope="col">Condition</th>
+                    <th scope="col" className="num">Level</th>
+                    <th scope="col" className="num hidden sm:table-cell">Now</th>
+                    <th scope="col">Status</th>
+                    <th scope="col"><span className="sr-only">Remove</span></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {watches.map((w) => {
+                    const now = rates[w.pair];
+                    return (
+                      <tr key={w.id}>
+                        <td className="font-medium">{w.pair}</td>
+                        <td>{w.direction === "above" ? "Rises above" : "Falls below"}</td>
+                        <td className="num">{formatRate(w.threshold)}</td>
+                        <td className="num hidden text-muted sm:table-cell">{now ? formatRate(now.rate) : "\u2013"}</td>
+                        <td>
+                          <span className="rx-status" data-state={w.triggeredAt ? "confirmed" : "pending"}>
+                            {w.triggeredAt ? `Reached at ${formatTime(w.triggeredAt)}` : "Watching"}
+                          </span>
+                        </td>
+                        <td className="num">
+                          <button
+                            type="button"
+                            className="rx-iconbtn"
+                            aria-label={`Remove ${w.pair} watch`}
+                            onClick={() => saveWatches(watchesRef.current.filter((x) => x.id !== w.id))}
+                          >
+                            <X size={15} />
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+      </section>
+    </div>
   );
 }

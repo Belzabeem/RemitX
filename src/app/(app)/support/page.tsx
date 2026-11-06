@@ -1,72 +1,62 @@
-import { Mail, ShieldAlert, FileText, Github, MapPin } from "lucide-react";
+import { Github, Mail } from "lucide-react";
+import PageHeader from "@/components/ui/PageHeader";
+import Notice from "@/components/ui/Notice";
+import { NETWORK_LABEL } from "@/lib/network-label";
 
 export default function SupportPage() {
   return (
-    <main className="min-h-screen bg-neutral-50/50">
-      <div className="max-w-3xl mx-auto px-4 lg:px-6 py-6 lg:py-8 space-y-4">
-        <div>
-          <h2 className="text-xl lg:text-2xl font-medium tracking-[-0.03em] text-primary mb-1">Support</h2>
-          <p className="text-sm text-neutral-500">RemitX is on Stellar testnet - here&apos;s where to go if something&apos;s wrong.</p>
-        </div>
+    <div className="rx-page">
+      <PageHeader title="Support" description="Where to go when something looks wrong." />
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <a
-            href="https://github.com/Northgate-Systems/RemitX/issues"
-            target="_blank"
-            rel="noreferrer"
-            className="bg-white border border-black/5 rounded-2xl p-5 flex items-start gap-3 hover: transition-all"
-          >
-            <Github size={20} className="text-primary shrink-0 mt-0.5" />
-            <div>
-              <p className="text-sm font-semibold text-neutral-800">Report an issue</p>
-              <p className="text-xs text-neutral-500 mt-1">File a bug on the RemitX GitHub repository.</p>
-            </div>
-          </a>
+      <div className="max-w-[640px]">
+        <Notice tone="caution">
+          RemitX runs on Stellar {NETWORK_LABEL.toLowerCase()}. Never send real assets here, and never reuse a mainnet secret key.
+        </Notice>
 
-          <a
-            href="mailto:bidifortune@gmail.com"
-            className="bg-white border border-black/5 rounded-2xl p-5 flex items-start gap-3 hover: transition-all"
-          >
-            <Mail size={20} className="text-primary shrink-0 mt-0.5" />
-            <div>
-              <p className="text-sm font-semibold text-neutral-800">Email the team</p>
-              <p className="text-xs text-neutral-500 mt-1">Questions about a transaction, an anchor listing, or the project.</p>
-            </div>
-          </a>
+        <ul className="mt-8">
+          <li className="border-t border-line py-5">
+            <a
+              href="https://github.com/Northgate-Systems/RemitX/issues"
+              target="_blank"
+              rel="noreferrer"
+              className="flex items-start gap-4"
+            >
+              <Github size={18} className="mt-0.5 flex-none text-muted" aria-hidden="true" />
+              <span>
+                <span className="rx-link block text-[15px] font-medium">Report an issue</span>
+                <span className="rx-small mt-1 block">File a bug or suggestion on the RemitX GitHub repository.</span>
+              </span>
+            </a>
+          </li>
+          <li className="border-t border-line py-5">
+            <a href="mailto:bidifortune@gmail.com" className="flex items-start gap-4">
+              <Mail size={18} className="mt-0.5 flex-none text-muted" aria-hidden="true" />
+              <span>
+                <span className="rx-link block text-[15px] font-medium">Email the team</span>
+                <span className="rx-small mt-1 block">Questions about a transfer, an anchor listing, or the project.</span>
+              </span>
+            </a>
+          </li>
+        </ul>
 
-          <div className="bg-white border border-black/5 rounded-2xl p-5 flex items-start gap-3">
-            <ShieldAlert size={20} className="text-amber-500 shrink-0 mt-0.5" />
-            <div>
-              <p className="text-sm font-semibold text-neutral-800">Testnet only</p>
-              <p className="text-xs text-neutral-500 mt-1">
-                All funds and transactions here are on Stellar testnet. Never send real assets or reuse a mainnet secret key.
-              </p>
-            </div>
-          </div>
+        <section className="rx-section">
+          <h2 className="rx-h2">How sending works</h2>
+          <p className="mt-2 max-w-[56ch] text-[14.5px] leading-[22px] text-muted">
+            Create a wallet on Overview. Send builds a Stellar path payment, Review signs and submits it, and Activity follows it until it&apos;s confirmed.
+          </p>
+        </section>
 
-          <div className="bg-white border border-black/5 rounded-2xl p-5 flex items-start gap-3">
-            <FileText size={20} className="text-primary shrink-0 mt-0.5" />
-            <div>
-              <p className="text-sm font-semibold text-neutral-800">How sending works</p>
-              <p className="text-xs text-neutral-500 mt-1">
-                Activate a wallet on the Dashboard, then Send builds a Stellar path payment, Review signs and submits it, and Activity tracks it to confirmation.
-              </p>
-            </div>
-          </div>
-
-          <div className="bg-white border border-black/5 rounded-2xl p-5 flex items-start gap-3 sm:col-span-2">
-            <MapPin size={20} className="text-primary shrink-0 mt-0.5" />
-            <div>
-              <p className="text-sm font-semibold text-neutral-800">Registered Office</p>
-              <p className="text-xs text-neutral-500 mt-1 leading-relaxed">
-                RemitX Technologies Ltd.<br />
-                14B Admiralty Way, Lekki Phase 1,<br />
-                Lagos 105102, Nigeria
-              </p>
-            </div>
-          </div>
-        </div>
+        <section className="rx-section">
+          <h2 className="rx-h2">Registered office</h2>
+          <address className="mt-2 text-[14.5px] not-italic leading-[22px] text-muted">
+            RemitX Technologies Ltd.
+            <br />
+            14B Admiralty Way, Lekki Phase 1
+            <br />
+            Lagos 105102, Nigeria
+          </address>
+        </section>
       </div>
-    </main>
+    </div>
   );
 }

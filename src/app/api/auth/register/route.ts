@@ -52,23 +52,13 @@ export async function POST(request: NextRequest) {
 
     const passwordHash = await hashPassword(password);
 
-    // Generate Stellar account if available
-    let stellarPublicKey: string | null = null;
-    try {
-      const { createTestnetAccount } = await import("@/lib/stellar");
-      const account = await createTestnetAccount();
-      stellarPublicKey = account.publicKey;
-      // Note: Secret keys must never be logged or stored on the server.
-    } catch (err) {
-      console.warn("Stellar account creation failed, continuing without one:", err);
-    }
-
     const user = await data.users.create({
       firstName: cleanFirstName,
       lastName: cleanLastName,
       email: cleanEmail,
       passwordHash,
-      stellarPublicKey,
+      // A wallet is linked later by signing a SEP-10 challenge; the server never generates keys.
+      stellarPublicKey: null,
       kycStatus: "pending",
       sessionVersion: 1,
       failedLoginAttempts: 0,

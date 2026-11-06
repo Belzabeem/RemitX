@@ -15,16 +15,17 @@ const securityHeaders = [
       "default-src 'self'",
       // Allow Turnstile + Next.js inline scripts (Next injects inline scripts)
       "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://challenges.cloudflare.com",
-      // Allow Tailwind-injected styles + Google Fonts
-      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+      // Tailwind-injected styles. Fonts are self-hosted, so no third-party font origins.
+      "style-src 'self' 'unsafe-inline'",
       // Allow Google Fonts woff2 + Turnstile font assets
-      "font-src 'self' https://fonts.gstatic.com data: https://challenges.cloudflare.com",
+      "font-src 'self' data: https://challenges.cloudflare.com",
       // Allow our images + Turnstile injected pixel/favicon
-      "img-src 'self' data: blob: https://challenges.cloudflare.com https://images.higgs.ai https://d8j0ntlcm91z4.cloudfront.net",
+      "img-src 'self' data: blob: https://challenges.cloudflare.com https://images.higgs.ai https://d8j0ntlcm91z4.cloudfront.net https://stellar.creit.tech",
       // Turnstile connects to challenges.cloudflare.com for widget + validation
-      "connect-src 'self' https://horizon-testnet.stellar.org https://api.stellar.org https://challenges.cloudflare.com",
+      // Wallet hosts: Albedo and xBull sign through hosted pages and messages.
+      "connect-src 'self' https://horizon-testnet.stellar.org https://api.stellar.org https://challenges.cloudflare.com https://albedo.link https://wallet.xbull.app",
       // Turnstile renders in an iframe hosted on challenges.cloudflare.com
-      "frame-src https://challenges.cloudflare.com",
+      "frame-src https://challenges.cloudflare.com https://albedo.link https://wallet.xbull.app",
       "worker-src 'self' blob:",
       "base-uri 'self'",
       "form-action 'self'",

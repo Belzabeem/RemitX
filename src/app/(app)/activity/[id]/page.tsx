@@ -1,18 +1,23 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams } from "next/navigation";
 import Link from "next/link";
+import { useParams } from "next/navigation";
+import { ArrowLeft, ExternalLink } from "lucide-react";
+import PageHeader from "@/components/ui/PageHeader";
+import Notice from "@/components/ui/Notice";
+import StatusMark from "@/components/ui/StatusMark";
+import CopyButton from "@/components/ui/CopyButton";
+import { Ledger, LedgerRow, LedgerStack } from "@/components/ui/Ledger";
 import {
-  ChevronRight,
-  Link2,
-  Copy,
-  Check,
-  Lock,
-  Unlock,
-  RotateCcw,
-  Clock,
-} from "lucide-react";
+  formatAmount,
+  formatDateTime,
+  formatRate,
+  timeUntil,
+  type EscrowStatus,
+  type TransactionStatus,
+} from "@/lib/format";
+import { explorerTxUrl } from "@/lib/network-label";
 
 interface TransactionDetail {
   id: string;
@@ -21,7 +26,7 @@ interface TransactionDetail {
   fromAmount: string;
   toAmount: string | null;
   recipientAddress: string;
-  status: "pending" | "validating" | "confirmed" | "failed";
+  status: TransactionStatus;
   stellarTxHash: string | null;
   createdAt: string;
   confirmedAt: string | null;
@@ -29,158 +34,182 @@ interface TransactionDetail {
 
 interface EscrowDetail {
   id: string;
-  status: "locked" | "released" | "refunded" | "expired";
+  status: EscrowStatus;
   amount: string;
   asset: string;
   expiresAt: string;
 }
 
-const STATUS_STYLE: Record<TransactionDetail["status"], string> = {
-  pending: "bg-neutral-100 text-neutral-600",
-  validating: "bg-amber-50 text-amber-700",
-  confirmed: "bg-neutral-100 text-neutral-800",
-  failed: "bg-red-50 text-red-700",
+const ESCROW_COPY: Record<EscrowStatus, string> = {
+  locked: "The funds are held on-chain. Before the expiry time only the platform authority can release them to the recipient. After it, the sender can take them back.",
+  released: "The funds were released to the recipient.",
+  refunded: "The escrow expired and the funds went back to the sender.",
+  expired: "The escrow has expired. The sender can now refund the funds.",
 };
 
-const ESCROW_ICON: Record<EscrowDetail["status"], typeof Lock> = {
-  locked: Lock,
-  released: Unlock,
-  refunded: RotateCcw,
-  expired: Clock,
-};
+function Timeline({ tx }: { tx: TransactionDetail }) {
+  const failed = tx.status === "failed";
+  const stage = tx.status === "pending" ? 0 : tx.status === "validating" ? 1 : 2;
+  const steps = [
+    { label: "Created", at: tx.createdAt },
+    { label: "Submitted to Stellar", at: stage >= 1 ? tx.createdAt : null },
+    { label: failed ? "Failed" : "Confirmed", at: tx.confirmedAt },
+  ];
+  return (
+    <ol className="grid grid-cols-3 gap-2" aria-label="Transfer progress">
+      {steps.map((s, i) => {
+        const reached = i <= stage;
+        const bad = failed && i === 2;
+        return (
+          <li key={s.label} className="min-w-0">
+            <div className="flex items-center gap-2" aria-hidden="true">
+              <span
+                className="h-[9px] w-[9px] flex-none rounded-full border-[1.5px]"
+                style={{
+                  borderColor: bad ? "var(--color-danger)" : reached ? "var(--color-ink)" : "var(--color-line-strong)",
+                  background: reached ? (bad ? "var(--color-danger)" : "var(--color-ink)") : "transparent",
+                }}
+              />
+              {i < steps.length - 1 && <span className="flex-1 border-t-2 border-dotted border-line-strong" />}
+            </div>
+            <p className={`mt-2 text-[14px] ${reached ? "font-medium" : "text-muted"}`}>{s.label}</p>
+            <p className="rx-small">{i === 1 ? "" : s.at && reached ? formatDateTime(s.at) : ""}</p>
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
 
 export default function TransactionDetailPage() {
   const params = useParams();
   const id = params.id as string;
-
   const [tx, setTx] = useState<TransactionDetail | null>(null);
   const [escrow, setEscrow] = useState<EscrowDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
-    const load = async () => {
-      setLoading(true);
+    let ignore = false;
+    const timer = setTimeout(async () => {
       try {
         const res = await fetch(`/api/transactions/${id}`);
         const json = await res.json();
+        if (ignore) return;
         if (res.ok) {
           setTx(json.data.transaction);
           setEscrow(json.data.escrow);
         } else {
-          setError(json.error || "Transaction not found.");
+          setError(json.error || "Transfer not found.");
         }
       } catch {
-        setError("Couldn't reach the server.");
+        if (!ignore) setError("Couldn't reach the server.");
       } finally {
-        setLoading(false);
+        if (!ignore) setLoading(false);
       }
+    }, 0);
+    return () => {
+      ignore = true;
+      clearTimeout(timer);
     };
-    load();
   }, [id]);
 
-  const copyHash = () => {
-    if (!tx?.stellarTxHash) return;
-    navigator.clipboard.writeText(tx.stellarTxHash);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1500);
-  };
+  const back = (
+    <Link href="/activity" className="rx-btn rx-btn-quiet rx-btn-sm -ml-3 mb-4">
+      <ArrowLeft size={15} aria-hidden="true" /> Activity
+    </Link>
+  );
 
   if (loading) {
     return (
-      <main className="min-h-screen bg-neutral-50/50 p-6">
-        <div className="max-w-3xl mx-auto space-y-3">
-          <div className="h-6 w-48 bg-neutral-200 rounded animate-pulse" />
-          <div className="h-40 bg-white border border-neutral-200 rounded-xl animate-pulse" />
-        </div>
-      </main>
+      <div className="rx-page" aria-busy="true">
+        {back}
+        <span className="rx-skel" style={{ width: 320, height: 36 }} />
+        <span className="rx-skel mt-10" style={{ height: 200 }} />
+      </div>
     );
   }
 
   if (error || !tx) {
     return (
-      <main className="min-h-screen bg-neutral-50/50 flex items-center justify-center">
-        <p className="text-sm text-neutral-500">
-          {error || "Transaction not found."} <Link href="/activity" className="text-primary font-semibold">Back to Activity</Link>
-        </p>
-      </main>
+      <div className="rx-page">
+        {back}
+        <Notice tone="danger">{error || "Transfer not found."}</Notice>
+      </div>
     );
   }
 
-  const EscrowIcon = escrow ? ESCROW_ICON[escrow.status] : null;
+  const rate = tx.toAmount ? parseFloat(tx.toAmount) / parseFloat(tx.fromAmount) : null;
+  const remaining = escrow ? timeUntil(escrow.expiresAt) : null;
 
   return (
-    <main className="min-h-screen bg-neutral-50/50">
-      <div className="max-w-3xl mx-auto px-4 lg:px-6 py-6 lg:py-8 space-y-4">
-        <nav className="flex items-center gap-1.5 text-xs text-neutral-400 font-semibold">
-          <Link href="/activity" className="hover:text-primary transition-colors">Activity</Link>
-          <ChevronRight size={14} />
-          <span className="text-primary font-semibold">{tx.id}</span>
-        </nav>
+    <div className="rx-page">
+      {back}
+      <PageHeader
+        title={`${formatAmount(tx.fromAmount, tx.fromAsset)} ${tx.fromAsset} to ${tx.toAsset}`}
+        description={<StatusMark state={tx.status} />}
+      />
 
-        <div className="bg-white rounded-2xl p-5 lg:p-6 border border-black/5">
-          <div className="flex justify-between items-start mb-4">
-            <div>
-              <p className="text-[10px] text-neutral-400 uppercase font-semibold mb-1">Transaction</p>
-              <h2 className="text-xl font-medium tracking-[-0.03em] text-primary">
-                {tx.fromAmount} {tx.fromAsset} → {tx.toAmount ?? "?"} {tx.toAsset}
-              </h2>
-            </div>
-            <span className={`px-2.5 py-1 rounded-full text-[10px] font-semibold uppercase ${STATUS_STYLE[tx.status]}`}>
-              {tx.status}
-            </span>
-          </div>
-
-          <div className="space-y-3 py-4 border-t border-neutral-100">
-            <div className="flex justify-between items-center text-sm">
-              <span className="text-neutral-500">Recipient</span>
-              <code className="text-xs text-neutral-700 break-all text-right">{tx.recipientAddress}</code>
-            </div>
-            <div className="flex justify-between items-center text-sm">
-              <span className="text-neutral-500">Created</span>
-              <span className="font-semibold text-neutral-800">{new Date(tx.createdAt).toLocaleString()}</span>
-            </div>
-            {tx.confirmedAt && (
-              <div className="flex justify-between items-center text-sm">
-                <span className="text-neutral-500">Confirmed</span>
-                <span className="font-semibold text-neutral-800">{new Date(tx.confirmedAt).toLocaleString()}</span>
-              </div>
-            )}
+      <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-12 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] lg:gap-16">
+        <section aria-label="Details">
+          <Ledger>
+            <LedgerRow label="You sent">
+              {formatAmount(tx.fromAmount, tx.fromAsset)} {tx.fromAsset}
+            </LedgerRow>
+            <LedgerRow label="They received">
+              {tx.toAmount ? `${formatAmount(tx.toAmount, tx.toAsset)} ${tx.toAsset}` : "\u2013"}
+            </LedgerRow>
+            <LedgerRow label="Rate">{rate ? `1 ${tx.fromAsset} = ${formatRate(rate)} ${tx.toAsset}` : "\u2013"}</LedgerRow>
+            <LedgerRow label="Created">{formatDateTime(tx.createdAt)}</LedgerRow>
+            {tx.confirmedAt && <LedgerRow label="Confirmed">{formatDateTime(tx.confirmedAt)}</LedgerRow>}
+          </Ledger>
+          <dl className="mt-3">
+            <LedgerStack label="Recipient" action={<CopyButton value={tx.recipientAddress} label="Copy recipient address" />}>
+              <span className="rx-mono">{tx.recipientAddress}</span>
+            </LedgerStack>
             {tx.stellarTxHash && (
-              <div className="flex justify-between items-center text-sm">
-                <span className="text-neutral-500">Stellar tx hash</span>
-                <button onClick={copyHash} className="flex items-center gap-1.5 text-primary font-semibold text-xs">
-                  <Link2 size={13} />
-                  <span className="truncate max-w-[160px]">{tx.stellarTxHash}</span>
-                  {copied ? <Check size={13} className="text-neutral-900" /> : <Copy size={13} />}
-                </button>
-              </div>
+              <LedgerStack label="Stellar transaction hash" action={<CopyButton value={tx.stellarTxHash} label="Copy transaction hash" />}>
+                <span className="rx-mono">{tx.stellarTxHash}</span>
+                <div className="mt-2 flex flex-wrap items-center gap-4">
+                  <a href={explorerTxUrl(tx.stellarTxHash)} target="_blank" rel="noreferrer" className="rx-link flex items-center gap-1.5 text-[14px]">
+                    View on Stellar Expert <ExternalLink size={13} aria-hidden="true" />
+                  </a>
+                  <Link href={`/verify?hash=${tx.stellarTxHash}`} className="rx-link text-[14px]">
+                    Verify receipt
+                  </Link>
+                </div>
+              </LedgerStack>
             )}
-          </div>
-        </div>
+            <LedgerStack label="Transfer ID" action={<CopyButton value={tx.id} label="Copy transfer ID" />}>
+              <span className="rx-mono">{tx.id}</span>
+            </LedgerStack>
+          </dl>
+        </section>
 
-        {escrow && EscrowIcon && (
-          <div className="bg-white rounded-2xl p-5 border border-black/5">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-sm font-semibold text-neutral-800">Escrow status</h3>
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-semibold uppercase bg-neutral-100 text-neutral-800">
-                <EscrowIcon size={12} /> {escrow.status}
-              </span>
-            </div>
-            <p className="text-xs text-neutral-500 mb-3">
-              {escrow.amount} {escrow.asset} held in the Soroban escrow contract, expires {new Date(escrow.expiresAt).toLocaleString()}.
-            </p>
-            <button
-              disabled
-              title="Escrow release authorization isn't implemented yet - see contracts/escrow/README.md"
-              className="w-full py-2.5 rounded-xl text-xs font-semibold bg-neutral-100 text-neutral-400 cursor-not-allowed"
-            >
-              Release (pending authorization design)
-            </button>
-          </div>
-        )}
+        <div className="space-y-10">
+          <section aria-label="Progress">
+            <h2 className="rx-h2 mb-4">Progress</h2>
+            <Timeline tx={tx} />
+          </section>
+
+          {escrow && (
+            <section aria-label="Escrow">
+              <div className="flex items-center justify-between gap-4">
+                <h2 className="rx-h2">Escrow</h2>
+                <StatusMark state={escrow.status} />
+              </div>
+              <Ledger>
+                <LedgerRow label="Held">{formatAmount(escrow.amount, escrow.asset)} {escrow.asset}</LedgerRow>
+                <LedgerRow label="Expires">{formatDateTime(escrow.expiresAt)}</LedgerRow>
+                {escrow.status === "locked" && (
+                  <LedgerRow label="Time left">{remaining ?? "Expired, refund available"}</LedgerRow>
+                )}
+              </Ledger>
+              <p className="mt-3 max-w-[56ch] text-[14.5px] leading-[22px] text-muted">{ESCROW_COPY[escrow.status]}</p>
+            </section>
+          )}
+        </div>
       </div>
-    </main>
+    </div>
   );
 }

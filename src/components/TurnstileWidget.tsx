@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useId, useState } from "react";
+import Notice from "@/components/ui/Notice";
 
 declare global {
   interface Window {
@@ -96,21 +97,18 @@ export default function TurnstileWidget({ onVerify, onExpire }: TurnstileWidgetP
   }, [containerId]);
 
   if (!SITE_KEY) {
+    const local = process.env.NODE_ENV !== "production";
     return (
-      <div className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5">
-        Cloudflare Turnstile is not configured yet - set{" "}
-        <code className="font-mono">NEXT_PUBLIC_TURNSTILE_SITE_KEY</code> in .env to enable
-        verification. Continuing without it for now.
-      </div>
+      <Notice tone="caution">
+        {local
+          ? "Bot verification is skipped locally because NEXT_PUBLIC_TURNSTILE_SITE_KEY isn't set."
+          : "Bot verification isn't configured, so this form can't be submitted yet."}
+      </Notice>
     );
   }
 
   if (error) {
-    return (
-      <div className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2.5">
-        {error}
-      </div>
-    );
+    return <Notice tone="danger">{error}</Notice>;
   }
 
   return <div id={containerId} />;

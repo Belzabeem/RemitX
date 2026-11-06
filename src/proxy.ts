@@ -20,6 +20,10 @@ const publicPathPrefixes = [
   "/api/auth/login",
   "/api/auth/register",
   "/api/auth/demo",
+  "/api/auth/wallet/",
+  "/api/verify/",
+  "/api/indexer/status",
+  "/api/indexer/sync",
   "/api/auth/forgot-password",
   "/api/auth/reset-password",
   "/api/public/",
@@ -27,7 +31,7 @@ const publicPathPrefixes = [
   "/api/health",
 ];
 
-const publicPagePrefixes = ["/", "/login", "/thank-you", "/legal/"];
+const publicPagePrefixes = ["/", "/login", "/verify", "/thank-you", "/legal/"];
 
 function isPublicPath(pathname: string): boolean {
   if (PUBLIC_FILE.test(pathname)) return true;

@@ -1,12 +1,5 @@
-import Header from "@/components/Header";
+import AppShell from "@/components/app/AppShell";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="min-h-screen bg-background">
-      <Header />
-      <div className="lg:ml-sidebar-width pt-header-height">
-        {children}
-      </div>
-    </div>
-  );
+  return <AppShell>{children}</AppShell>;
 }

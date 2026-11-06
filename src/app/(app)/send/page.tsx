@@ -1,90 +1,138 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowRightLeft, AtSign, ArrowRight, Info, RefreshCw, AlertCircle, CheckCircle2 } from "lucide-react";
+import { ArrowDownUp, Check, RefreshCw } from "lucide-react";
+import PageHeader from "@/components/ui/PageHeader";
+import Notice from "@/components/ui/Notice";
+import RouteTrace from "@/components/ui/RouteTrace";
+import { Ledger, LedgerRow } from "@/components/ui/Ledger";
+import { useCurrentUser } from "@/components/app/user-context";
 import { checkStellarPublicKey, STELLAR_PUBLIC_KEY_LENGTH } from "@/lib/stellar-address";
+import { formatAmount, formatRate, formatTime, normalizeAmount, sanitizeDecimal } from "@/lib/format";
 
-const ASSETS = ["XLM", "USDC", "USD", "NGN", "PHP", "GBP"];
+const ASSETS = ["USD", "NGN", "PHP", "GBP", "USDC", "XLM"];
+const CORRIDORS: [string, string][] = [
+  ["USD", "NGN"],
+  ["USD", "PHP"],
+  ["USD", "GBP"],
+  ["GBP", "NGN"],
+];
 const QUOTE_REFRESH_MS = 15_000;
+
+function stroopsToXlm(stroops: number): string {
+  return (stroops / 1e7).toFixed(7).replace(/0+$/, "").replace(/\.$/, "");
+}
 
 export default function SendMoneyPage() {
   const router = useRouter();
+  const { user } = useCurrentUser();
   const [fromAsset, setFromAsset] = useState("USD");
   const [toAsset, setToAsset] = useState("NGN");
-  const [amount, setAmount] = useState("100.00");
+  const [amount, setAmount] = useState("");
   const [recipient, setRecipient] = useState("");
   const [recipientTouched, setRecipientTouched] = useState(false);
   const [rate, setRate] = useState<string | null>(null);
-  const [rateLoading, setRateLoading] = useState(false);
+  const [previousRate, setPreviousRate] = useState<string | null>(null);
+  const [rateLoading, setRateLoading] = useState(true);
   const [rateUpdatedAt, setRateUpdatedAt] = useState<Date | null>(null);
-  const [justUpdated, setJustUpdated] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [baseFeeStroops, setBaseFeeStroops] = useState<number | null>(null);
+  const [quoteError, setQuoteError] = useState<string | null>(null);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const rateRef = useRef<string | null>(null);
 
   const fetchQuote = useCallback(async () => {
     setRateLoading(true);
-    setError(null);
     try {
       const res = await fetch(`/api/stellar/rate?from=${fromAsset}&to=${toAsset}`);
       const json = await res.json();
       if (res.ok) {
-        if (rateRef.current && rateRef.current !== json.data.rate) {
-          setJustUpdated(true);
-          setTimeout(() => setJustUpdated(false), 1500);
-        }
+        if (rateRef.current && rateRef.current !== json.data.rate) setPreviousRate(rateRef.current);
         rateRef.current = json.data.rate;
         setRate(json.data.rate);
         setRateUpdatedAt(new Date());
+        setQuoteError(null);
       } else {
-        setError(json.error || "Couldn't fetch a rate for this corridor.");
+        setQuoteError(json.error || "There's no live rate for this corridor right now.");
         setRate(null);
+        rateRef.current = null;
       }
     } catch {
-      setError("Couldn't reach the server for a live rate.");
+      setQuoteError("Couldn't reach the server for a live rate.");
       setRate(null);
+      rateRef.current = null;
     } finally {
       setRateLoading(false);
     }
   }, [fromAsset, toAsset]);
 
-  // Debounced refetch when the corridor changes
+  // Quote when the corridor changes, then keep it fresh so the rate shown at
+  // "Review transfer" is never more than QUOTE_REFRESH_MS old.
   useEffect(() => {
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(fetchQuote, 400);
+    const first = setTimeout(() => void fetchQuote(), 250);
+    const repeat = setInterval(() => void fetchQuote(), QUOTE_REFRESH_MS);
     return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
+      clearTimeout(first);
+      clearInterval(repeat);
     };
   }, [fetchQuote]);
 
-  // Keep the quote live while the user is composing a send, so the rate
-  // shown at "Continue" time is never more than QUOTE_REFRESH_MS stale.
   useEffect(() => {
-    const interval = setInterval(fetchQuote, QUOTE_REFRESH_MS);
-    return () => clearInterval(interval);
-  }, [fetchQuote]);
+    let ignore = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/stellar/status");
+        if (!res.ok) return;
+        const json = await res.json();
+        if (!ignore) setBaseFeeStroops(json.data.baseFeeStroops);
+      } catch {
+        // The fee row just shows a dash.
+      }
+    })();
+    return () => {
+      ignore = true;
+    };
+  }, []);
+
+  const changeCorridor = (from: string, to: string) => {
+    setFromAsset(from);
+    setToAsset(to);
+    setRate(null);
+    setPreviousRate(null);
+    rateRef.current = null;
+    setRateLoading(true);
+  };
 
   const numericAmount = parseFloat(amount) || 0;
-  const converted = rate ? numericAmount * parseFloat(rate) : 0;
+  const received = rate ? numericAmount * parseFloat(rate) : 0;
 
-  // Checksum-validate the recipient as it's typed. Funds sent on Stellar are
-  // irreversible, so a typo has to be caught here rather than by Horizon.
+  // Funds on Stellar can't be recalled, so the checksum is verified as the
+  // address is typed instead of waiting for Horizon to reject it.
   const trimmedRecipient = recipient.trim();
   const recipientCheck = checkStellarPublicKey(trimmedRecipient);
-  // Don't scold someone mid-paste: only surface the error once they've left
-  // the field or typed something already long enough to be a full address.
   const showRecipientError =
     !recipientCheck.valid &&
     trimmedRecipient.length > 0 &&
     (recipientTouched || trimmedRecipient.length >= STELLAR_PUBLIC_KEY_LENGTH);
-  const canContinue = numericAmount > 0 && recipientCheck.valid && !!rate && !rateLoading;
+
+  const needsWallet = !!user && !user.stellarPublicKey;
+  const canContinue = numericAmount > 0 && recipientCheck.valid && !!rate && !rateLoading && !needsWallet;
+  const blocker = needsWallet
+    ? "Create a wallet on Overview first."
+    : numericAmount <= 0
+      ? "Enter an amount to continue."
+      : !recipientCheck.valid
+        ? "Enter a valid Stellar address to continue."
+        : !rate
+          ? "Waiting for a live rate."
+          : null;
 
   const handleContinue = async () => {
     if (!canContinue) return;
     setSubmitting(true);
-    setError(null);
+    setSubmitError(null);
     try {
       const res = await fetch("/api/stellar/send", {
         method: "POST",
@@ -92,8 +140,8 @@ export default function SendMoneyPage() {
         body: JSON.stringify({
           fromAsset,
           toAsset,
-          amount: amount,
-          recipientAddress: recipient.trim(),
+          amount: normalizeAmount(amount),
+          recipientAddress: trimmedRecipient,
         }),
       });
       const json = await res.json();
@@ -112,168 +160,208 @@ export default function SendMoneyPage() {
         );
         router.push(`/review?transactionId=${json.data.transactionId}`);
       } else {
-        setError(json.error || "Couldn't start this transfer.");
+        setSubmitError(json.error || "Couldn't start this transfer.");
       }
     } catch {
-      setError("Couldn't reach the server. Try again.");
+      setSubmitError("Couldn't reach the server. Try again.");
     } finally {
       setSubmitting(false);
     }
   };
 
   return (
-    <main className="min-h-screen bg-neutral-50/50">
-      <div className="max-w-5xl mx-auto px-4 lg:px-6 py-6 lg:py-8">
-        <div className="mb-6">
-          <h2 className="text-xl lg:text-2xl font-medium tracking-[-0.03em] text-primary mb-1">Send Money Globally</h2>
-          <p className="text-sm text-neutral-500">Live rates, routed over the Stellar network.</p>
+    <div className="rx-page">
+      <PageHeader
+        title="Send money"
+        description="Choose a corridor, check the quote, and review everything before it's signed."
+      />
+
+      {needsWallet && (
+        <div className="mb-8">
+          <Notice tone="caution">
+            You need a Stellar wallet before you can send.{" "}
+            <Link href="/dashboard" className="rx-link">
+              Create one on Overview
+            </Link>
+            .
+          </Notice>
         </div>
+      )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-6 items-start">
-          {/* Left - Form */}
-          <div className="lg:col-span-7 space-y-4">
-            <section className="bg-white rounded-2xl p-5 lg:p-6 border border-black/5">
-              <h3 className="text-base font-semibold text-neutral-800 mb-5 flex items-center gap-2">
-                <ArrowRightLeft size={18} className="text-primary" />
-                Transfer Details
-              </h3>
-              <div className="space-y-5">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-neutral-500 ml-1">You Send</label>
-                  <div className="flex items-stretch border border-neutral-200 rounded-xl overflow-hidden focus-within:ring-2 focus-within:ring-primary/20 transition-all shadow-sm">
-                    <input
-                      className="flex-1 px-4 py-3.5 border-none text-lg font-semibold focus:ring-0 outline-none"
-                      placeholder="0.00"
-                      type="number"
-                      min="0"
-                      value={amount}
-                      onChange={(e) => setAmount(e.target.value)}
-                    />
-                    <select
-                      value={fromAsset}
-                      onChange={(e) => setFromAsset(e.target.value)}
-                      className="bg-neutral-50 px-3 text-sm font-semibold text-neutral-700 border-l border-neutral-200 outline-none"
-                    >
-                      {ASSETS.map((a) => <option key={a} value={a}>{a}</option>)}
-                    </select>
-                  </div>
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-neutral-500 ml-1">Recipient Gets</label>
-                  <div className="flex items-stretch border border-neutral-200 rounded-xl overflow-hidden shadow-sm">
-                    <input
-                      className="flex-1 px-4 py-3.5 border-none text-lg font-semibold bg-neutral-50 focus:ring-0 text-neutral-500 outline-none"
-                      readOnly
-                      type="text"
-                      value={rateLoading ? "…" : converted.toFixed(2)}
-                    />
-                    <select
-                      value={toAsset}
-                      onChange={(e) => setToAsset(e.target.value)}
-                      className="bg-neutral-50 px-3 text-sm font-semibold text-neutral-700 border-l border-neutral-200 outline-none"
-                    >
-                      {ASSETS.map((a) => <option key={a} value={a}>{a}</option>)}
-                    </select>
-                  </div>
-                </div>
-                <hr className="border-neutral-100" />
-                <div className="space-y-3">
-                  <h4 className="text-[10px] font-semibold text-primary uppercase tracking-widest">Recipient Details</h4>
-                  <div className="space-y-1.5">
-                    <label htmlFor="recipient-address" className="text-xs font-semibold text-neutral-500 ml-1">Stellar Address</label>
-                    <div className="relative">
-                      <input
-                        id="recipient-address"
-                        className={`w-full px-4 py-2.5 rounded-xl border transition-all pl-10 pr-10 text-sm ${
-                          showRecipientError
-                            ? "border-red-300 focus:ring-2 focus:ring-red-200"
-                            : "border-neutral-200 focus:ring-2 focus:ring-primary/20"
-                        }`}
-                        placeholder="G..."
-                        type="text"
-                        autoComplete="off"
-                        spellCheck={false}
-                        value={recipient}
-                        onChange={(e) => setRecipient(e.target.value)}
-                        onBlur={() => setRecipientTouched(true)}
-                        aria-invalid={showRecipientError}
-                        aria-describedby="recipient-address-status"
-                      />
-                      <AtSign size={16} className={`absolute left-3 top-1/2 -translate-y-1/2 ${showRecipientError ? "text-red-400" : "text-neutral-400"}`} />
-                      {recipientCheck.valid && (
-                        <CheckCircle2 size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-900" aria-hidden="true" />
-                      )}
-                    </div>
-                    <p id="recipient-address-status" role="status" aria-live="polite" className="min-h-[1rem] ml-1">
-                      {showRecipientError ? (
-                        <span className="text-[11px] text-red-600 flex items-start gap-1 leading-relaxed">
-                          <AlertCircle size={12} className="shrink-0 mt-0.5" />
-                          {recipientCheck.message}
-                        </span>
-                      ) : recipientCheck.valid ? (
-                        <span className="text-[11px] text-neutral-900">Valid Stellar address.</span>
-                      ) : null}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </section>
-          </div>
-
-          {/* Right - Summary */}
-          <div className="lg:col-span-5 lg:sticky lg:top-24 space-y-4">
-            <section className="bg-primary text-white rounded-3xl p-5 lg:p-6 shadow-xl relative overflow-hidden">
-              <h3 className="text-base font-semibold mb-6 relative z-10">Transaction Summary</h3>
-              <div className="space-y-4 relative z-10">
-                <div className="space-y-3">
-                  <div className="flex justify-between items-center text-sm opacity-80">
-                    <span>Exchange Rate</span>
-                    <span className={`font-semibold transition-colors duration-700 ${justUpdated ? "text-neutral-400" : ""}`}>
-                      {rateLoading ? "Loading…" : rate ? `1 ${fromAsset} = ${parseFloat(rate).toFixed(4)} ${toAsset}` : "-"}
-                    </span>
-                  </div>
-                  {rateUpdatedAt && (
-                    <div className="flex justify-between items-center text-[10px] opacity-60">
-                      <span className="flex items-center gap-1">
-                        <RefreshCw size={10} className={rateLoading ? "animate-spin" : ""} />
-                        Live, refreshing every {QUOTE_REFRESH_MS / 1000}s
-                      </span>
-                      <span>Updated {rateUpdatedAt.toLocaleTimeString()}</span>
-                    </div>
-                  )}
-                </div>
-                <div className="bg-white/10 p-4 rounded-xl backdrop-blur-sm border border-white/5">
-                  <div className="flex flex-col items-center py-1">
-                    <span className="text-[10px] opacity-70 uppercase tracking-widest mb-1">Recipient Receives</span>
-                    <div className="flex items-baseline gap-1.5">
-                      <span className="text-2xl lg:text-3xl font-semibold">{rateLoading ? "…" : converted.toFixed(2)}</span>
-                      <span className="text-sm">{toAsset}</span>
-                    </div>
-                  </div>
-                </div>
-                {error && (
-                  <div className="flex items-start gap-2 p-2.5 bg-red-900/30 rounded-lg text-red-200 text-xs leading-relaxed">
-                    <Info size={14} className="shrink-0 mt-0.5" />
-                    <p>{error}</p>
-                  </div>
-                )}
-                <div className="flex items-start gap-2 p-2.5 bg-neutral-900/30 rounded-lg text-neutral-300 text-[10px] leading-relaxed">
-                  <Info size={14} className="shrink-0 mt-0.5" />
-                  <p>Verify the Stellar address carefully. Funds sent cannot be recovered.</p>
-                </div>
+      <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-12 lg:grid-cols-[minmax(0,1fr)_380px] lg:gap-16">
+        {/* Form */}
+        <div className="space-y-8">
+          <div>
+            <span className="rx-label" id="corridor-label">Corridor</span>
+            <div className="flex flex-wrap gap-2" role="group" aria-labelledby="corridor-label">
+              {CORRIDORS.map(([from, to]) => (
                 <button
-                  onClick={handleContinue}
-                  disabled={!canContinue || submitting}
-                  className="w-full bg-primary text-white font-medium py-3 rounded-full text-sm flex items-center justify-center gap-2 hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50 disabled:hover:scale-100"
+                  key={`${from}-${to}`}
+                  type="button"
+                  className="rx-chip"
+                  aria-pressed={fromAsset === from && toAsset === to}
+                  onClick={() => changeCorridor(from, to)}
                 >
-                  {submitting ? "Preparing transaction…" : "Continue to Review"}
-                  {!submitting && <ArrowRight size={18} />}
+                  {from} to {to}
                 </button>
-              </div>
-            </section>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <label className="rx-label" htmlFor="send-amount">You send</label>
+            <div className="rx-amountfield">
+              <input
+                id="send-amount"
+                inputMode="decimal"
+                autoComplete="off"
+                placeholder="0.00"
+                value={amount}
+                onChange={(e) => setAmount(sanitizeDecimal(e.target.value))}
+              />
+              <select aria-label="Currency you send" value={fromAsset} onChange={(e) => changeCorridor(e.target.value, toAsset)}>
+                {ASSETS.map((a) => (
+                  <option key={a} value={a}>{a}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="my-2 flex justify-start">
+              <button
+                type="button"
+                className="rx-iconbtn"
+                aria-label="Swap currencies"
+                title="Swap currencies"
+                onClick={() => changeCorridor(toAsset, fromAsset)}
+              >
+                <ArrowDownUp size={16} />
+              </button>
+            </div>
+
+            <label className="rx-label" htmlFor="receive-amount">Recipient gets</label>
+            <div className="rx-amountfield" data-readonly="true">
+              <input
+                id="receive-amount"
+                readOnly
+                tabIndex={-1}
+                value={rate && numericAmount > 0 ? formatAmount(received, toAsset) : ""}
+                placeholder="0.00"
+                aria-live="polite"
+              />
+              <select aria-label="Currency they receive" value={toAsset} onChange={(e) => changeCorridor(fromAsset, e.target.value)}>
+                {ASSETS.map((a) => (
+                  <option key={a} value={a}>{a}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label className="rx-label" htmlFor="recipient-address">Recipient&apos;s Stellar address</label>
+            <div className="rx-field-icon">
+              <input
+                id="recipient-address"
+                className="rx-input rx-mono"
+                style={{ fontSize: 13.5 }}
+                placeholder="G…"
+                autoComplete="off"
+                autoCapitalize="characters"
+                spellCheck={false}
+                value={recipient}
+                onChange={(e) => setRecipient(e.target.value)}
+                onBlur={() => setRecipientTouched(true)}
+                aria-invalid={showRecipientError}
+                aria-describedby="recipient-status"
+              />
+              {recipientCheck.valid && (
+                <span aria-hidden="true" className="grid h-[34px] w-[34px] place-items-center text-positive">
+                  <Check size={17} />
+                </span>
+              )}
+            </div>
+            <p
+              id="recipient-status"
+              role="status"
+              className="rx-hint"
+              data-tone={showRecipientError ? "danger" : recipientCheck.valid ? "positive" : undefined}
+            >
+              {showRecipientError
+                ? recipientCheck.message
+                : recipientCheck.valid
+                  ? "Valid address. The checksum matches."
+                  : "A public key starting with G, 56 characters long."}
+            </p>
           </div>
         </div>
+
+        {/* Quote */}
+        <aside className="lg:sticky lg:top-8" aria-label="Quote">
+          <div className="rx-sheet rx-sheet-pad">
+            <div className="flex items-center justify-between">
+              <h2 className="rx-h2">Quote</h2>
+              <button
+                type="button"
+                className="rx-iconbtn"
+                onClick={() => void fetchQuote()}
+                aria-label="Refresh rate"
+                title="Refresh rate"
+              >
+                <RefreshCw size={15} className={rateLoading ? "rx-spin" : ""} />
+              </button>
+            </div>
+
+            <div className="mt-3 min-h-[46px]">
+              {rate ? <RouteTrace nodes={[fromAsset, "Stellar", toAsset]} animateKey={`${fromAsset}-${toAsset}`} /> : null}
+            </div>
+
+            <div className="mt-2">
+              <Ledger>
+                <LedgerRow label="Rate">
+                  {rate ? `1 ${fromAsset} = ${formatRate(rate)} ${toAsset}` : rateLoading ? <span className="rx-skel inline-block align-middle" style={{ width: 120, height: 14 }} /> : "\u2013"}
+                </LedgerRow>
+                <LedgerRow label="RemitX fee">None</LedgerRow>
+                <LedgerRow label="Network fee">
+                  {baseFeeStroops !== null ? `${stroopsToXlm(baseFeeStroops)} XLM` : "\u2013"}
+                </LedgerRow>
+                <LedgerRow label="Arrives">About 5 seconds</LedgerRow>
+                <LedgerRow label="They receive" total>
+                  {rate && numericAmount > 0 ? `${formatAmount(received, toAsset)} ${toAsset}` : "\u2013"}
+                </LedgerRow>
+              </Ledger>
+            </div>
+
+            <p className="rx-small mt-3" aria-live="polite">
+              {rateUpdatedAt && rate ? `Rate updated ${formatTime(rateUpdatedAt)}.` : "\u00A0"}
+              {previousRate && rate && previousRate !== rate ? ` It moved from ${formatRate(previousRate)}.` : ""}
+            </p>
+
+            {quoteError && (
+              <div className="mt-4">
+                <Notice tone="danger">{quoteError}</Notice>
+              </div>
+            )}
+            {submitError && (
+              <div className="mt-4">
+                <Notice tone="danger">{submitError}</Notice>
+              </div>
+            )}
+
+            <div className="mt-5">
+              <Notice tone="caution">Stellar payments can&apos;t be reversed. Check the address before you continue.</Notice>
+            </div>
+
+            <button
+              type="button"
+              className="rx-btn rx-btn-primary rx-btn-block mt-5"
+              onClick={handleContinue}
+              disabled={!canContinue || submitting}
+            >
+              {submitting ? "Preparing transfer…" : "Review transfer"}
+            </button>
+            <p className="rx-small mt-3 min-h-[18px] text-center">{blocker}</p>
+          </div>
+        </aside>
       </div>
-    </main>
+    </div>
   );
 }
