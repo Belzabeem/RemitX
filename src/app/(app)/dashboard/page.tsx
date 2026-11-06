@@ -70,6 +70,8 @@ export default function OverviewPage() {
     return () => clearTimeout(id);
   }, [load]);
 
+  // TODO: frontend#wallet-switch-network — Add UI to switch wallet between
+  // testnet and mainnet when mainnet is enabled (see Stellar skill: Wallets).
   const activateWallet = async () => {
     setActivating(true);
     setError(null);

@@ -4,7 +4,7 @@
 //! (`SALT_ROUNDS = 12`). The JWT signing/verification from `auth.ts` lives
 //! in [`crate::jwt`] instead.
 
-use bcrypt::{hash, verify, DEFAULT_COST};
+use bcrypt::{DEFAULT_COST, hash, verify};
 
 /// bcrypt cost factor, matching `SALT_ROUNDS = 12` in `src/lib/auth.ts`.
 pub const SALT_ROUNDS: u32 = 12;
@@ -20,7 +20,7 @@ pub fn verify_password(password: &str, hash: &str) -> Result<bool, bcrypt::Bcryp
 }
 
 /// Default bcrypt cost constant re-exported for callers that need it directly.
-pub const DEFAULT_BCRYPT_COST: u32 = DEFAULT_COST;
+pub const DEFAULT_BCRYPT_COST: u32 = DEFAULT_COST as u32;
 
 #[cfg(test)]
 mod tests {
@@ -55,7 +55,7 @@ mod tests {
 
     #[test]
     fn default_cost_is_reasonable() {
-        const { assert!(DEFAULT_BCRYPT_COST >= 4) };
-        const { assert!(DEFAULT_BCRYPT_COST <= 31) };
+        assert!(DEFAULT_BCRYPT_COST >= 4);
+        assert!(DEFAULT_BCRYPT_COST <= 31);
     }
 }

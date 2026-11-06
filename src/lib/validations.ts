@@ -32,27 +32,13 @@ export const loginSchema = z.object({
 export const stellarSendSchema = z.object({
   fromAsset: z.string().min(1, "Source asset is required").max(10),
   toAsset: z.string().min(1, "Destination asset is required").max(10),
-  amount: z
-    .string()
-    .regex(/^\d+(\.\d{1,7})?$/, "Amount must be a positive number with at most 7 decimals")
-    .refine((a) => Number(a) > 0, "Amount must be greater than zero"),
+  amount: z.string().regex(/^\d+(\.\d+)?$/, "Amount must be a positive number"),
   // The regex alone accepts any 56-char G-string, so a single mistyped
   // character sails through it; the checksum is what actually catches typos.
   recipientAddress: z
     .string()
     .regex(/^G[A-Z2-7]{55}$/, "Invalid Stellar public key")
     .refine(isValidStellarPublicKey, "Invalid Stellar public key (checksum failed)"),
-});
-
-const assetCode = z.string().trim().min(1).max(12).regex(/^[A-Za-z0-9]+$/, "Invalid asset code");
-
-export const routeQuerySchema = z.object({
-  from: assetCode,
-  to: assetCode,
-  amount: z
-    .string()
-    .regex(/^\d+(\.\d{1,7})?$/, "Amount must be a positive number with at most 7 decimals")
-    .refine((a) => Number(a) > 0, "Amount must be greater than zero"),
 });
 
 export const stellarSubmitSchema = z.object({

@@ -185,8 +185,8 @@ mod tests {
             to_asset: "NGN".to_string(),
             from_amount: "100.00".to_string(),
             to_amount: None,
-            recipient_address: "GBRPYHIL2C3T2DTB24CVN2F4Q3S5P7JQZ6WFHVN3J2X2X2X2X2X2X2X"
-                .to_string(),
+            recipient_address:
+                "GBRPYHIL2C3T2DTB24CVN2F4Q3S5P7JQZ6WFHVN3J2X2X2X2X2X2X2X".to_string(),
             stellar_tx_hash: None,
             escrow_id: None,
             status: TransactionStatus::Pending,

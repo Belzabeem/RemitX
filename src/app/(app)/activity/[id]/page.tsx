@@ -170,14 +170,9 @@ export default function TransactionDetailPage() {
             {tx.stellarTxHash && (
               <LedgerStack label="Stellar transaction hash" action={<CopyButton value={tx.stellarTxHash} label="Copy transaction hash" />}>
                 <span className="rx-mono">{tx.stellarTxHash}</span>
-                <div className="mt-2 flex flex-wrap items-center gap-4">
-                  <a href={explorerTxUrl(tx.stellarTxHash)} target="_blank" rel="noreferrer" className="rx-link flex items-center gap-1.5 text-[14px]">
-                    View on Stellar Expert <ExternalLink size={13} aria-hidden="true" />
-                  </a>
-                  <Link href={`/verify?hash=${tx.stellarTxHash}`} className="rx-link text-[14px]">
-                    Verify receipt
-                  </Link>
-                </div>
+                <a href={explorerTxUrl(tx.stellarTxHash)} target="_blank" rel="noreferrer" className="rx-link mt-2 flex w-fit items-center gap-1.5 text-[14px]">
+                  View on Stellar Expert <ExternalLink size={13} aria-hidden="true" />
+                </a>
               </LedgerStack>
             )}
             <LedgerStack label="Transfer ID" action={<CopyButton value={tx.id} label="Copy transfer ID" />}>

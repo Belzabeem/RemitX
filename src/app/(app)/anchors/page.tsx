@@ -18,32 +18,6 @@ interface AnchorRow {
   estimatedFee: number;
 }
 
-interface AssetInfo {
-  enabled: boolean;
-  feeFixed?: number;
-  feePercent?: number;
-  minAmount?: number;
-  maxAmount?: number;
-}
-
-interface LiveInfo {
-  reachable: boolean;
-  transferServer?: string;
-  deposit?: Record<string, AssetInfo>;
-  withdraw?: Record<string, AssetInfo>;
-  error?: string;
-  fetchedAt: string;
-}
-
-function feeInfoText(i: AssetInfo): string {
-  if (!i.enabled) return "Not available";
-  const parts = [
-    i.feePercent !== undefined && `${i.feePercent}%`,
-    i.feeFixed !== undefined && `${i.feeFixed} fixed`,
-  ].filter(Boolean);
-  return parts.length ? parts.join(" + ") : "Fee not published";
-}
-
 const ASSETS = ["USDC", "EURC", "XLM"];
 
 export default function AnchorsPage() {
@@ -53,28 +27,6 @@ export default function AnchorsPage() {
   const [assetCode, setAssetCode] = useState("USDC");
   const [amount, setAmount] = useState("200");
   const [error, setError] = useState<string | null>(null);
-  const [live, setLive] = useState<Record<string, LiveInfo | "loading">>({});
-
-  const checkLive = async (id: string) => {
-    setLive((prev) => ({ ...prev, [id]: "loading" }));
-    try {
-      const res = await fetch(`/api/anchors/${encodeURIComponent(id)}/info`);
-      const json = await res.json();
-      if (res.ok && json.success) {
-        setLive((prev) => ({ ...prev, [id]: json.data }));
-      } else {
-        setLive((prev) => ({
-          ...prev,
-          [id]: { reachable: false, error: json.error || "Failed to query anchor", fetchedAt: new Date().toISOString() },
-        }));
-      }
-    } catch {
-      setLive((prev) => ({
-        ...prev,
-        [id]: { reachable: false, error: "Network timeout", fetchedAt: new Date().toISOString() },
-      }));
-    }
-  };
 
   const load = useCallback(async () => {
     const value = parseFloat(amount);
@@ -192,48 +144,11 @@ export default function AnchorsPage() {
                     </td>
                   </tr>
                 ) : (
-                  visible.map((a) => {
-                    const l = live[a.id];
-                    return (
+                  visible.map((a) => (
                     <tr key={a.id}>
                       <td>
                         <span className="block font-medium">{a.name}</span>
                         <span className="rx-small block">{a.domain}</span>
-                        <button
-                          type="button"
-                          className="rx-link mt-1 text-[12px]"
-                          disabled={l === "loading"}
-                          onClick={() => checkLive(a.id)}
-                        >
-                          {l === "loading"
-                            ? "Checking live…"
-                            : l
-                              ? "Re-check live"
-                              : "Check live SEP-24"}
-                        </button>
-                        {l && l !== "loading" && (
-                          <div className="mt-2 rounded-[6px] border border-line bg-paper p-2 text-[12px]">
-                            {l.reachable ? (
-                              <div className="space-y-1">
-                                <p className="font-medium text-ink">Live SEP-24 fee:</p>
-                                {l.deposit?.[a.assetCode] && (
-                                  <p className="text-muted">
-                                    Deposit: {feeInfoText(l.deposit[a.assetCode])}
-                                  </p>
-                                )}
-                                {l.withdraw?.[a.assetCode] && (
-                                  <p className="text-muted">
-                                    Withdraw: {feeInfoText(l.withdraw[a.assetCode])}
-                                  </p>
-                                )}
-                              </div>
-                            ) : (
-                              <p className="text-muted">
-                                Unreachable: {l.error || "SEP-24 server unavailable"}
-                              </p>
-                            )}
-                          </div>
-                        )}
                       </td>
                       <td className="hidden sm:table-cell">
                         <span className="block">{a.corridor}</span>
@@ -254,8 +169,7 @@ export default function AnchorsPage() {
                       </td>
                       <td className="hidden whitespace-nowrap md:table-cell">{a.typicalSettlement}</td>
                     </tr>
-                    );
-                  })
+                  ))
                 )}
               </tbody>
             </table>

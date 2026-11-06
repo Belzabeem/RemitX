@@ -1,4 +1,3 @@
-import { getJwtSecret } from "./secrets";
 // Edge-safe JWT verification for `src/proxy.ts` (formerly `src/middleware.ts`).
 //
 // The proxy runs in a constrained runtime where Node-only packages such as
@@ -8,6 +7,8 @@ import { getJwtSecret } from "./secrets";
 // (`globalThis.crypto.subtle`), which is available in Edge, Node 18+, and
 // Vercel's runtime.
 
+const JWT_SECRET =
+  process.env.JWT_SECRET || "dev-jwt-secret-change-in-production-min-32-chars-long";
 
 function base64UrlToBytes(input: string): Uint8Array<ArrayBuffer> {
   // Normalise base64url -> base64, then decode without relying on Buffer
@@ -48,7 +49,7 @@ export async function verifyToken(token: string): Promise<SessionPayload | null>
 
     const key = await globalThis.crypto.subtle.importKey(
       "raw",
-      textToBytes(getJwtSecret()),
+      textToBytes(JWT_SECRET),
       { name: "HMAC", hash: "SHA-256" },
       false,
       ["verify"]

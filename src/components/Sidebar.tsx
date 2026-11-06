@@ -1,153 +1,67 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import {
-  X,
-  PlusCircle,
-  LayoutDashboard,
-  Send,
-  ArrowLeftRight,
-  Landmark,
-  LineChart,
-  History,
-  ClipboardCheck,
-  HelpCircle,
-  LogOut,
-} from "lucide-react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { ArrowLeftRight, History, Landmark, LayoutDashboard, LifeBuoy, LineChart, LogOut, Send, ShieldCheck, X } from "lucide-react";
 import BrandMark from "./BrandMark";
+import { useWallet } from "@/lib/wallet-context";
 
-const navItems = [
-  { href: "/dashboard", icon: LayoutDashboard, label: "Dashboard" },
-  { href: "/send", icon: Send, label: "Send Money" },
-  { href: "/routes", icon: ArrowLeftRight, label: "Route Comparison" },
-  { href: "/anchors", icon: Landmark, label: "Anchor Fees" },
-  { href: "/rates", icon: LineChart, label: "Rates/DEX" },
+const NAV = [
+  { href: "/dashboard", icon: LayoutDashboard, label: "Overview" },
+  { href: "/send", icon: Send, label: "Send money" },
+  { href: "/routes", icon: ArrowLeftRight, label: "Compare routes" },
+  { href: "/anchors", icon: Landmark, label: "Anchors" },
+  { href: "/rates", icon: LineChart, label: "Rates" },
   { href: "/activity", icon: History, label: "Activity" },
-  { href: "/review", icon: ClipboardCheck, label: "Review" },
+];
+const SECONDARY = [
+  { href: "/verify", icon: ShieldCheck, label: "Verify a transfer" },
+  { href: "/support", icon: LifeBuoy, label: "Support" },
 ];
 
-export default function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose?: () => void }) {
+export default function Sidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
   const pathname = usePathname();
   const router = useRouter();
+  const { disconnect } = useWallet();
 
-  const handleSignOut = async () => {
-    try {
-      await fetch("/api/auth/logout", { method: "POST" });
-    } finally {
-      router.push("/login");
-      router.refresh();
-    }
-  };
-
-  const isActive = (href: string) => {
-    if (href === "/dashboard") return pathname === "/dashboard";
-    return pathname.startsWith(href);
-  };
+  const active = (href: string) => (href === "/dashboard" ? pathname === href : pathname.startsWith(href));
+  const link = (item: (typeof NAV)[number]) => (
+    <Link
+      key={item.href}
+      href={item.href}
+      onClick={onClose}
+      aria-current={active(item.href) ? "page" : undefined}
+      className={`flex items-center gap-3 border-l-2 px-5 py-2 text-[0.9375rem] transition-colors ${
+        active(item.href) ? "border-accent bg-surface font-semibold text-ink" : "border-transparent text-muted hover:text-ink"
+      }`}
+    >
+      <item.icon size={17} aria-hidden /> {item.label}
+    </Link>
+  );
 
   return (
     <>
-      {/* Mobile Overlay */}
-      <div
-        className={`sidebar-overlay lg:hidden ${isOpen ? "open" : ""}`}
-        onClick={onClose}
-      />
-
-      {/* Sidebar */}
-      <aside className={`w-sidebar-width h-screen fixed left-0 top-0 bg-surface/80 dark:bg-inverse-surface/90 backdrop-blur-xl border-r border-outline-variant/50 dark:border-outline/30 flex flex-col py-5 z-50 overflow-y-auto custom-scrollbar sidebar-desktop transition-all duration-300 lg:translate-x-0 ${isOpen ? "open" : ""}`}>
-        {/* Logo */}
-        <div className="px-5 mb-6">
-          <Link href="/" className="flex items-center gap-2.5 group" onClick={onClose}>
-            <div className="w-9 h-9 bg-primary rounded-full flex items-center justify-center text-white transition-transform duration-300 group-hover:scale-105">
-              <BrandMark size={16} />
-            </div>
-            <div>
-              <h1 className="text-[15px] font-semibold tracking-[-0.01em] text-primary leading-tight">RemitX</h1>
-              <p className="text-[10px] font-medium text-outline/70 dark:text-outline tracking-wider uppercase">Stellar Network</p>
-            </div>
+      {open && <div className="fixed inset-0 z-40 bg-ink/40 lg:hidden" onClick={onClose} aria-hidden />}
+      <aside
+        className={`fixed inset-y-0 left-0 z-50 flex w-sidebar flex-col border-r border-rule bg-paper py-4 transition-transform lg:translate-x-0 ${open ? "translate-x-0" : "-translate-x-full"}`}
+        aria-label="Main"
+      >
+        <div className="mb-6 flex items-center justify-between px-5">
+          <Link href="/dashboard" className="flex items-center gap-2 text-lg font-semibold">
+            <BrandMark size={20} className="text-ink" /> RemitX
           </Link>
+          <button className="btn btn-quiet lg:hidden" onClick={onClose} aria-label="Close menu"><X size={18} /></button>
         </div>
-
-        {/* Close button on mobile */}
-        {onClose && (
-          <button onClick={onClose} className="lg:hidden absolute top-4 right-4 p-1.5 text-on-surface-variant hover:text-primary rounded-lg hover:bg-surface-container-low transition-all">
-            <X size={18} />
-          </button>
-        )}
-
-        {/* Navigation */}
-        <nav className="flex-1 px-3 space-y-0.5">
-          {navItems.map((item, index) => {
-            const active = isActive(item.href);
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                onClick={onClose}
-                className={`group relative flex items-center gap-3 px-3 py-2 rounded-full transition-all duration-200 animate-fade-in-up ${
-                  active
-                    ? "text-white font-semibold"
-                    : "text-on-surface-variant/70 dark:text-outline hover:text-primary dark:hover:text-primary-fixed-dim"
-                }`}
-                style={{ animationDelay: `${index * 50}ms` }}
-              >
-                {/* Active background gradient */}
-                {active && (
-                  <div className="absolute inset-0 bg-primary rounded-full" />
-                )}
-
-                {!active && (
-                  <div className="absolute inset-0 rounded-full opacity-0 group-hover:opacity-100 bg-black/5 transition-opacity duration-200" />
-                )}
-
-                {/* Icon */}
-                <item.icon
-                  size={18}
-                  className={`relative z-10 transition-all duration-300 ${
-                    active ? "text-white" : "group-hover:text-primary"
-                  }`}
-                />
-
-                {/* Label */}
-                <span className={`relative z-10 text-sm transition-all duration-200 ${
-                  active ? "text-white" : "group-hover:translate-x-0.5"
-                }`}>
-                  {item.label}
-                </span>
-
-                              </Link>
-            );
-          })}
-        </nav>
-
-        {/* Bottom section */}
-        <div className="px-3 mt-auto pt-4 border-t border-outline-variant/30 dark:border-outline/20 space-y-1">
-          <div className="cta w-full" style={{ marginTop: 0, display: "block" }}>
-            <Link
-              href="/"
-              className="relative flex items-center gap-3 px-4 py-2.5 rounded-full bg-primary text-white font-medium text-sm transition-transform duration-300 hover:-translate-y-px"
-              onClick={onClose}
-            >
-              <PlusCircle size={18} />
-              <span>Add Funds</span>
-            </Link>
-          </div>
-          <Link
-            href="/support"
-            className="flex items-center gap-3 px-3 py-2 text-xs text-on-surface-variant/60 hover:text-primary rounded-full hover:bg-black/5 transition-all duration-200"
-          >
-            <HelpCircle size={18} />
-            <span>Support</span>
-          </Link>
+        <nav className="flex-1">{NAV.map(link)}</nav>
+        <nav className="border-t border-rule pt-3">
+          {SECONDARY.map(link)}
           <button
-            onClick={handleSignOut}
-            className="w-full flex items-center gap-3 px-3 py-2 text-xs text-on-surface-variant/60 hover:text-error rounded-full hover:bg-black/5 transition-all duration-200"
+            className="flex w-full items-center gap-3 border-l-2 border-transparent px-5 py-2 text-[0.9375rem] text-muted hover:text-ink"
+            onClick={async () => { await disconnect(); router.push("/login"); router.refresh(); }}
           >
-            <LogOut size={18} />
-            <span>Sign Out</span>
+            <LogOut size={17} aria-hidden /> Sign out
           </button>
-        </div>
+        </nav>
       </aside>
     </>
   );

@@ -1,71 +1,68 @@
 import { NextRequest } from "next/server";
-import { z } from "zod";
+import { Asset } from "@stellar/stellar-sdk";
 import { getCurrentUser } from "@/lib/auth";
-import { server, resolveAsset } from "@/lib/stellar";
-import { discoverRoutes } from "@/lib/routing";
-import { routeQuerySchema } from "@/lib/validations";
+import { server } from "@/lib/stellar";
 import { successResponse, errorResponse, unauthorizedResponse } from "@/lib/api-response";
-import { rateLimit } from "@/lib/security";
 
-// API routes must not pre-render
+function resolvePathAsset(code: string): Asset {
+  const upper = code.toUpperCase();
+  if (upper === "XLM") return Asset.native();
+  const issuer = process.env[`STELLAR_${upper}_ISSUER`];
+  if (!issuer) throw new Error(`No configured issuer for ${upper}`);
+  return new Asset(upper, issuer);
+}
+
+/** Real Stellar path-finding via Horizon's /paths/strict-send - returns the
+ * actual on-chain routes available right now for a given send amount, no
+ * fabricated providers or fee tables. */
+// TODO: backend#sep-24 — Full SEP-24 deposit / withdraw flow (anchor integration).
+// TODO: backend#sep-6 — SEP-6 anchor integration for fiat on/off-ramps.
+// TODO: backend#rate-limiting — Per-IP / per-user API rate limiting.
+
+// See note in src/app/api/health/route.ts — API routes must not pre-render.
 export const dynamic = "force-dynamic";
 
-/**
- * Real Stellar path finding (Horizon /paths/strict-send). Returns the cheapest
- * route by amount received, the alternatives, and a full cost breakdown.
- * Nothing here is mocked or hardcoded.
- */
 export async function GET(request: NextRequest) {
   try {
     const user = await getCurrentUser();
     if (!user) return unauthorizedResponse();
-    if (!rateLimit(`routes:${user.id}`, 60, 60_000).allowed) {
-      return errorResponse("Too many requests. Please try again shortly.", 429);
-    }
 
     const { searchParams } = new URL(request.url);
-    const parsed = routeQuerySchema.safeParse({
-      from: searchParams.get("from"),
-      to: searchParams.get("to"),
-      amount: searchParams.get("amount") ?? "100",
-    });
-    if (!parsed.success) {
-      return errorResponse(parsed.error.issues[0]?.message ?? "Invalid query", 400);
-    }
-    const from = parsed.data.from.toUpperCase();
-    const to = parsed.data.to.toUpperCase();
+    const from = searchParams.get("from");
+    const to = searchParams.get("to");
+    const amount = searchParams.get("amount") || "100";
 
-    let sourceAsset, destAsset;
+    if (!from || !to) {
+      return errorResponse("from and to query parameters are required", 400);
+    }
+
+    let sourceAsset: Asset;
+    let destAsset: Asset;
     try {
-      sourceAsset = resolveAsset(from);
-      destAsset = resolveAsset(to);
+      sourceAsset = resolvePathAsset(from);
+      destAsset = resolvePathAsset(to);
     } catch (err) {
       return errorResponse(err instanceof Error ? err.message : "Unsupported asset", 422);
     }
 
-    const discovery = await discoverRoutes(
-      { from, to, amount: parsed.data.amount, sourceAsset, destAsset },
-      server as unknown as Parameters<typeof discoverRoutes>[1]
-    );
+    const paths = await server
+      .strictSendPaths(sourceAsset, amount, [destAsset])
+      .call();
 
-    const allQuotes = [
-      ...(discovery.best ? [discovery.best] : []),
-      ...discovery.alternatives,
-    ];
-    const routes = allQuotes.map((q) => ({
-      sourceAmount: q.sendAmount,
-      destinationAmount: q.receiveAmount,
-      path: q.hops,
+    const routes = paths.records.map((r) => ({
+      sourceAmount: r.source_amount,
+      destinationAmount: r.destination_amount,
+      path: [
+        from.toUpperCase(),
+        ...r.path.map((p) => (p.asset_type === "native" ? "XLM" : p.asset_code || "?")),
+        to.toUpperCase(),
+      ],
     }));
 
-    return successResponse({
-      ...discovery,
-      routes,
-      amount: parsed.data.amount,
-    });
+    return successResponse({ routes, from: from.toUpperCase(), to: to.toUpperCase(), amount });
   } catch (err: unknown) {
-    if (err instanceof z.ZodError) return errorResponse("Invalid query", 400);
     console.error("Routes fetch error:", err);
-    return errorResponse("Could not reach Stellar network to find routes. Try again shortly.", 502);
+    const message = err instanceof Error ? err.message : "Failed to fetch routes";
+    return errorResponse(message, 500);
   }
 }

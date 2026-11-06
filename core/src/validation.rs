@@ -37,16 +37,10 @@ pub fn validate_email(email: &str) -> ValidationResult<()> {
     }
     let parts: Vec<&str> = email.split('@').collect();
     if parts.len() != 2 || parts[0].is_empty() || parts[1].is_empty() {
-        return Err(ValidationError::new(
-            "email",
-            "Email must have a local part and domain",
-        ));
+        return Err(ValidationError::new("email", "Email must have a local part and domain"));
     }
     if !parts[1].contains('.') {
-        return Err(ValidationError::new(
-            "email",
-            "Email domain must contain a '.'",
-        ));
+        return Err(ValidationError::new("email", "Email domain must contain a '.'"));
     }
     Ok(())
 }
@@ -54,16 +48,10 @@ pub fn validate_email(email: &str) -> ValidationResult<()> {
 /// Validates a remittance amount: positive, finite, max 7 decimal places.
 pub fn validate_amount(amount: f64) -> ValidationResult<f64> {
     if !amount.is_finite() {
-        return Err(ValidationError::new(
-            "amount",
-            "Amount must be a finite number",
-        ));
+        return Err(ValidationError::new("amount", "Amount must be a finite number"));
     }
     if amount <= 0.0 {
-        return Err(ValidationError::new(
-            "amount",
-            "Amount must be greater than 0",
-        ));
+        return Err(ValidationError::new("amount", "Amount must be greater than 0"));
     }
     // Stellar supports 7 decimal places.
     let scaled = amount * 1e7;
@@ -111,7 +99,11 @@ mod tests {
 
     #[test]
     fn validate_email_accepts_valid_addresses() {
-        for email in ["alice@example.com", "bob.smith+tag@domain.co.uk", "x@y.io"] {
+        for email in [
+            "alice@example.com",
+            "bob.smith+tag@domain.co.uk",
+            "x@y.io",
+        ] {
             assert!(validate_email(email).is_ok(), "{} should be valid", email);
         }
     }
@@ -135,11 +127,7 @@ mod tests {
     #[test]
     fn validate_amount_accepts_valid_amounts() {
         for amount in [0.01, 100.0, 1234567.1234567, 0.0000001] {
-            assert!(
-                validate_amount(amount).is_ok(),
-                "{:?} should be valid",
-                amount
-            );
+            assert!(validate_amount(amount).is_ok(), "{:?} should be valid", amount);
         }
     }
 
@@ -164,20 +152,12 @@ mod tests {
         // Build a genuinely valid address (correct CRC16 checksum) so the
         // happy path is actually exercised.
         let addr = crate::strkey::make_test_address([42u8; 32]);
-        assert!(
-            validate_stellar_address(&addr).is_ok(),
-            "{:?} should be valid",
-            addr
-        );
+        assert!(validate_stellar_address(&addr).is_ok(), "{:?} should be valid", addr);
     }
 
     #[test]
     fn validate_stellar_address_rejects_invalid() {
-        let cases = [
-            "",
-            "not-an-address",
-            "GCXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
-        ];
+        let cases = ["", "not-an-address", "GCXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"];
         for addr in cases {
             assert!(
                 validate_stellar_address(addr).is_err(),

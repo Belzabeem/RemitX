@@ -5,27 +5,47 @@ import {
   Asset,
   Operation,
   TransactionBuilder,
+  BASE_FEE,
 } from "@stellar/stellar-sdk";
 import { getRate } from "@/lib/rates";
-import { toStroops } from "@/lib/amounts";
-import { withTimeout } from "@/lib/http";
-import type { HorizonPathRecord } from "@/lib/routing";
 
 const NETWORK = process.env.STELLAR_NETWORK || "testnet";
 export const HORIZON_URL = process.env.STELLAR_HORIZON_URL || "https://horizon-testnet.stellar.org";
 export const NETWORK_PASSPHRASE = NETWORK === "testnet" ? Networks.TESTNET : Networks.PUBLIC;
-export const EXPLORER_BASE =
-  NETWORK === "testnet" ? "https://stellar.expert/explorer/testnet" : "https://stellar.expert/explorer/public";
-const HORIZON_TIMEOUT_MS = 8000;
 
 export const server = new Horizon.Server(HORIZON_URL);
+
+// ---------------------------------------------------------------------------
+// Stellar Integration
+//
+// Network: testnet by default (STELLAR_NETWORK, STELLAR_HORIZON_URL).
+//   - Horizon (legacy REST API) is used below for compatibility with the
+//     existing path-payment / liquidity endpoints.
+//   - Per current Stellar best practices, new integrations should prefer
+//     Stellar RPC (https://developers.stellar.org/docs/build/rpc) over
+//     Horizon. See TODO below for the RPC migration issue.
+//
+// Assets: XLM is native. Every other asset needs a real issuing account
+//   configured via STELLAR_<CODE>_ISSUER. resolveAsset() throws a clear
+//   error for any asset that isn't configured yet - never a fake issuer.
+//
+// Stellar Asset Contract (SAC):
+//   - For tokenized assets (USDC, NGNT, etc.) consider wrapping the
+//     Stellar asset in a SAC (Stellar Asset Contract) so it can be used
+//     in Soroban contracts. See contracts/ for the Soroban workspace.
+//   - TODO: Add SAC issuance / redemption endpoints when anchors go live.
+//
+// Security:
+//   - Never log or expose secret keys. Issuer public keys are safe to log.
+//   - Validate all Stellar public keys against /^G[A-Z2-7]{55}$/ before use.
+//   - Audit checklist: see docs/SECURITY-NOTES.md before mainnet.
+// ---------------------------------------------------------------------------
 
 const STELLAR_PUBKEY_RE = /^G[A-Z2-7]{55}$/;
 
 /** Resolve a currency/asset code to a Stellar Asset. XLM is native; every
- * other asset needs its issuer's public key set as STELLAR_<CODE>_ISSUER.
- * An unconfigured asset fails loudly instead of using a placeholder issuer. */
-export function resolveAsset(code: string): Asset {
+ * other asset needs its issuer's public key set as STELLAR_<CODE>_ISSUER. */
+function resolveAsset(code: string): Asset {
   const upper = code.toUpperCase();
   if (upper === "XLM") return Asset.native();
 
@@ -42,25 +62,15 @@ export function resolveAsset(code: string): Asset {
   return new Asset(upper, issuer);
 }
 
-/** Ask Friendbot to fund a testnet account. Testnet only; the server never
- * creates or holds keys, the wallet owns the key. */
-export async function fundTestnetAccount(publicKey: string): Promise<{ funded: boolean; reason?: string }> {
-  if (NETWORK !== "testnet") return { funded: false, reason: "Friendbot is only available on testnet" };
-  try {
-    const res = await withTimeout(
-      fetch(`https://friendbot.stellar.org?addr=${encodeURIComponent(publicKey)}`),
-      HORIZON_TIMEOUT_MS,
-      "Friendbot"
-    );
-    if (res.ok) return { funded: true };
-    // Friendbot answers 400 when the account already exists.
-    return { funded: false, reason: res.status === 400 ? "Account is already funded" : `Friendbot responded ${res.status}` };
-  } catch (err) {
-    return { funded: false, reason: err instanceof Error ? err.message : "Friendbot unreachable" };
-  }
-}
+// TODO: Migrate Horizon calls to Stellar RPC (preferred per Stellar docs).
+// Issue: frontend#rpc-migration — replace `server` (Horizon) with RPC client
+// for getAccountBalances, getNetworkStatus, and path-finding.
 
-/** Generate a new Stellar keypair and fund via Friendbot (testnet only, for demo/dev) */
+// TODO: Stellar Asset Contract (SAC) support.
+// Issue: contracts#sac-issuance — wrap anchored assets (USDC, NGNT, etc.) in
+// SACs so they can be used in Soroban escrow / exchange contracts.
+
+/** Generate a new Stellar keypair and fund via Friendbot (testnet only) */
 export async function createTestnetAccount(): Promise<{
   publicKey: string;
   secretKey: string;
@@ -70,36 +80,44 @@ export async function createTestnetAccount(): Promise<{
   const secretKey = keypair.secret();
 
   if (NETWORK === "testnet") {
+    const friendbotUrl = `https://friendbot.stellar.org?addr=${publicKey}`;
     try {
-      await fundTestnetAccount(publicKey);
+      const response = await fetch(friendbotUrl, { method: "GET" });
+      if (!response.ok) {
+        const body = await response.text();
+        console.warn(`[createTestnetAccount] Friendbot responded with ${response.status}: ${body}`);
+      }
     } catch (err) {
-      console.warn("[createTestnetAccount] Friendbot request failed:", err);
+      console.warn(`[createTestnetAccount] Friendbot request failed:`, err);
     }
   }
 
   return { publicKey, secretKey };
 }
 
-/** Reference fiat rate for display only. Never used to price a transfer: the
- * receive amount of a transfer always comes from Horizon path finding. */
+/** Fetch a live rate for fromAsset -> toAsset (real free-API rate engine, see lib/rates.ts) */
 export async function fetchRate(from: string, to: string): Promise<string> {
   const result = await getRate(from, to);
   return result.rate;
 }
 
-/** Real balances from Horizon. Returns [] if the account isn't funded yet. */
+/** Get an account's real balances from Horizon. Returns [] if the account
+ * doesn't exist on-chain yet (unfunded). */
 export async function getAccountBalances(publicKey: string): Promise<
   Array<{ asset: string; balance: string }>
 > {
   try {
-    const account = await withTimeout(server.loadAccount(publicKey), HORIZON_TIMEOUT_MS, "Horizon account lookup");
+    const account = await server.loadAccount(publicKey);
     return account.balances.map((b) => {
-      const asset = b.asset_type === "native" ? "XLM" : (b as { asset_code: string }).asset_code;
+      const asset =
+        b.asset_type === "native"
+          ? "XLM"
+          : (b as { asset_code: string }).asset_code;
       return { asset, balance: b.balance };
     });
   } catch (err: unknown) {
     const status = (err as { response?: { status?: number } })?.response?.status;
-    if (status === 404) return [];
+    if (status === 404) return []; // unfunded / doesn't exist yet
     throw err;
   }
 }
@@ -110,11 +128,7 @@ export async function getNetworkStatus(): Promise<{
   baseFeeStroops: number;
   closedAt: string;
 }> {
-  const ledgers = await withTimeout(
-    server.ledgers().order("desc").limit(1).call(),
-    HORIZON_TIMEOUT_MS,
-    "Horizon ledger lookup"
-  );
+  const ledgers = await server.ledgers().order("desc").limit(1).call();
   const latest = ledgers.records[0];
   return {
     ledgerSequence: latest.sequence,
@@ -123,43 +137,45 @@ export async function getNetworkStatus(): Promise<{
   };
 }
 
-/** Build an unsigned path_payment_strict_send transaction (XDR) for the wallet to sign. */
+/** Build a path_payment_strict_send transaction and return unsigned XDR */
 export async function buildSendTransaction(params: {
   sourcePublicKey: string;
   fromAsset: string;
   toAsset: string;
   fromAmount: string;
-  /** Minimum the recipient must receive; the transaction fails on-chain below this. */
-  destMin: string;
+  toAmount: string;
   recipientAddress: string;
-  path?: HorizonPathRecord["path"];
-  feeStroops?: number;
 }): Promise<string> {
-  const { sourcePublicKey, fromAsset, toAsset, fromAmount, destMin, recipientAddress } = params;
+  const { sourcePublicKey, fromAsset, toAsset, fromAmount, toAmount, recipientAddress } = params;
 
-  if (!STELLAR_PUBKEY_RE.test(recipientAddress)) throw new Error("Invalid recipient address");
+  if (!STELLAR_PUBKEY_RE.test(recipientAddress)) {
+    throw new Error("Invalid recipient address");
+  }
 
   const sendAsset = resolveAsset(fromAsset);
   const destAsset = resolveAsset(toAsset);
-  const path = (params.path ?? []).map((p) =>
-    p.asset_type === "native" ? Asset.native() : new Asset(p.asset_code as string, p.asset_issuer as string)
-  );
 
-  const account = await withTimeout(server.loadAccount(sourcePublicKey), HORIZON_TIMEOUT_MS, "Horizon account lookup");
+  const account = await server.loadAccount(sourcePublicKey);
 
-  const entry = account.balances.find((b) =>
+  // Check the source actually holds enough of the send asset before
+  // building a transaction that Horizon will reject anyway.
+  const balanceEntry = account.balances.find((b) =>
     sendAsset.isNative()
       ? b.asset_type === "native"
-      : (b as { asset_code?: string; asset_issuer?: string }).asset_code === sendAsset.getCode() &&
-        (b as { asset_issuer?: string }).asset_issuer === sendAsset.getIssuer()
+      : (b as { asset_code?: string }).asset_code === sendAsset.getCode()
   );
-  const available = entry ? toStroops(entry.balance) : BigInt(0);
-  if (available < toStroops(fromAmount)) {
-    throw new Error(`Insufficient balance: have ${entry?.balance ?? "0"} ${fromAsset}, need ${fromAmount} ${fromAsset}`);
+  const available = balanceEntry ? parseFloat(balanceEntry.balance) : 0;
+  if (available < parseFloat(fromAmount)) {
+    throw new Error(
+      `Insufficient balance: have ${available} ${fromAsset}, need ${fromAmount} ${fromAsset}`
+    );
   }
 
-  return new TransactionBuilder(account, {
-    fee: String(params.feeStroops ?? 100),
+  // 1% slippage tolerance on the destination minimum
+  const destMin = (parseFloat(toAmount) * 0.99).toFixed(7);
+
+  const transaction = new TransactionBuilder(account, {
+    fee: BASE_FEE,
     networkPassphrase: NETWORK_PASSPHRASE,
   })
     .addOperation(
@@ -169,12 +185,12 @@ export async function buildSendTransaction(params: {
         destination: recipientAddress,
         destAsset,
         destMin,
-        path,
       })
     )
     .setTimeout(180)
-    .build()
-    .toXDR();
+    .build();
+
+  return transaction.toXDR();
 }
 
 /** Submit a signed XDR to Horizon */
@@ -184,13 +200,19 @@ export async function submitTransaction(signedXdr: string): Promise<{
   resultCode?: string;
 }> {
   const transaction = TransactionBuilder.fromXDR(signedXdr, NETWORK_PASSPHRASE);
+
   try {
-    const result = await withTimeout(server.submitTransaction(transaction), 30_000, "Horizon submit");
+    const result = await server.submitTransaction(transaction);
     return { hash: result.hash, status: "confirmed" };
   } catch (err: unknown) {
-    const extras = (err as { response?: { data?: { extras?: { result_codes?: unknown } } } })?.response?.data?.extras
-      ?.result_codes;
-    console.error("[submitTransaction] Horizon rejected the transaction:", extras ?? (err as Error).message);
-    return { hash: "", status: "failed", resultCode: extras ? JSON.stringify(extras) : "unknown_error" };
+    const extras = (err as {
+      response?: { data?: { extras?: { result_codes?: unknown } } };
+    })?.response?.data?.extras?.result_codes;
+    console.error("[submitTransaction] Horizon rejected the transaction:", extras ?? err);
+    return {
+      hash: "",
+      status: "failed",
+      resultCode: extras ? JSON.stringify(extras) : "unknown_error",
+    };
   }
 }

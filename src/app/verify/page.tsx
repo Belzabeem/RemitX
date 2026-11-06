@@ -1,7 +1,5 @@
 import type { Metadata } from "next";
-import Link from "next/link";
-import BrandMark from "@/components/BrandMark";
-import { NETWORK_LABEL } from "@/lib/network-label";
+import PublicHeader from "@/components/PublicHeader";
 import VerifyClient from "./verify-client";
 
 export const metadata: Metadata = {
@@ -11,24 +9,15 @@ export const metadata: Metadata = {
 
 export default function VerifyPage() {
   return (
-    <div className="rx-app min-h-screen">
-      <header className="border-b border-line px-6 py-4">
-        <div className="mx-auto flex max-w-[800px] items-center justify-between">
-          <Link href="/" className="rx-brand !px-0">
-            <BrandMark size={18} />
-            RemitX
-          </Link>
-          <div className="flex items-center gap-4">
-            <span className="rx-small">{NETWORK_LABEL}</span>
-            <Link href="/dashboard" className="rx-link text-[14px]">
-              Dashboard
-            </Link>
-          </div>
-        </div>
-      </header>
-      <main className="mx-auto max-w-[800px] px-6 py-12">
+    <>
+      <PublicHeader />
+      <main className="mx-auto max-w-3xl px-4 pb-20 pt-8 sm:px-8">
+        <h1 className="text-3xl font-semibold">Verify a transfer</h1>
+        <p className="mt-2 max-w-xl text-muted">
+          Paste a Stellar transaction hash. The details come straight from the network, not from RemitX&apos;s records, so a receipt can&apos;t be faked.
+        </p>
         <VerifyClient />
       </main>
-    </div>
+    </>
   );
 }

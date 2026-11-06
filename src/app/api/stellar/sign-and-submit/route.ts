@@ -3,7 +3,6 @@ import { Keypair, TransactionBuilder } from "@stellar/stellar-sdk";
 import { data } from "@/lib/data";
 import { getCurrentUser } from "@/lib/auth";
 import { submitTransaction, NETWORK_PASSPHRASE } from "@/lib/stellar";
-import { assertSignedXdrMatches, TxMismatchError } from "@/lib/tx-guard";
 import { successResponse, errorResponse, unauthorizedResponse } from "@/lib/api-response";
 
 // API routes must not pre-render
@@ -47,22 +46,9 @@ export async function POST(request: NextRequest) {
     const transaction = TransactionBuilder.fromXDR(xdr, NETWORK_PASSPHRASE);
     transaction.sign(keypair);
 
-    const signedXdr = transaction.toXDR();
-    try {
-      assertSignedXdrMatches(signedXdr, {
-        source: user.stellarPublicKey ?? "",
-        recipient: existing.recipientAddress,
-        fromAmount: existing.fromAmount,
-        networkPassphrase: NETWORK_PASSPHRASE,
-      });
-    } catch (err) {
-      if (err instanceof TxMismatchError) return errorResponse(err.message, 400);
-      throw err;
-    }
-
     await data.transactions.update(transactionId, { status: "validating" });
 
-    const result = await submitTransaction(signedXdr);
+    const result = await submitTransaction(transaction.toXDR());
 
     const updated = await data.transactions.update(transactionId, {
       status: result.status === "confirmed" ? "confirmed" : "failed",

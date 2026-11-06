@@ -29,7 +29,14 @@ pub const MIN_PASSWORD_SCORE: u8 = 3;
 // 5 checks below means score can be 0-5 inclusive (6 possible values) — these
 // arrays need 6 entries, not 5, so a password passing every check (score 5)
 // still resolves to a label/color instead of indexing past the end.
-const STRENGTH_LABELS: [&str; 6] = ["Very weak", "Weak", "Fair", "Good", "Strong", "Very strong"];
+const STRENGTH_LABELS: [&str; 6] = [
+    "Very weak",
+    "Weak",
+    "Fair",
+    "Good",
+    "Strong",
+    "Very strong",
+];
 const STRENGTH_COLORS: [&str; 6] = [
     "bg-red-500",
     "bg-orange-500",
@@ -108,7 +115,8 @@ mod wasm {
     /// browser meter renders the same checks the API enforces.
     #[wasm_bindgen(js_name = getPasswordStrength)]
     pub fn get_password_strength_js(password: &str) -> String {
-        serde_json::to_string(&get_password_strength(password)).unwrap_or_else(|_| "{}".to_string())
+        serde_json::to_string(&get_password_strength(password))
+            .unwrap_or_else(|_| "{}".to_string())
     }
 
     /// `meetsPasswordRequirement(password) -> bool`

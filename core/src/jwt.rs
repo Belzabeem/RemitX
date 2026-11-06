@@ -35,9 +35,13 @@ pub fn verify_token(token: &str) -> Option<SessionPayload> {
     };
 
     let signing_input = format!("{}.{}", encoded_header, encoded_payload);
-    let signature_bytes = base64_url_decode(encoded_signature)?;
+    let signature_bytes = match base64_url_decode(encoded_signature) {
+        Some(b) => b,
+        None => return None,
+    };
 
-    let key = HmacSha256::new_from_slice(JWT_SECRET).expect("HMAC accepts any key length");
+    let key = HmacSha256::new_from_slice(JWT_SECRET)
+        .expect("HMAC accepts any key length");
     let mut mac = key.clone();
     mac.update(signing_input.as_bytes());
     let expected = mac.finalize().into_bytes();
@@ -46,9 +50,9 @@ pub fn verify_token(token: &str) -> Option<SessionPayload> {
         return None;
     }
 
-    let payload_json = {
-        let b = base64_url_decode(encoded_payload)?;
-        String::from_utf8_lossy(&b).to_string()
+    let payload_json = match base64_url_decode(encoded_payload) {
+        Some(b) => String::from_utf8_lossy(&b).to_string(),
+        None => return None,
     };
     let payload: serde_json::Value = match serde_json::from_str(&payload_json) {
         Ok(v) => v,
@@ -85,7 +89,8 @@ pub fn sign_token(sub: &str, email: &str, session_version: u64) -> String {
     let encoded_payload = base64_url_encode(serde_json::to_string(&payload).unwrap().as_bytes());
     let signing_input = format!("{}.{}", header, encoded_payload);
 
-    let mut mac = HmacSha256::new_from_slice(JWT_SECRET).expect("HMAC accepts any key length");
+    let mut mac = HmacSha256::new_from_slice(JWT_SECRET)
+        .expect("HMAC accepts any key length");
     mac.update(signing_input.as_bytes());
     let signature = mac.finalize().into_bytes();
     let encoded_signature = base64_url_encode(&signature);
@@ -107,9 +112,7 @@ fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
 
 /// Base64url-decode (no padding).
 fn base64_url_decode(input: &str) -> Option<Vec<u8>> {
-    base64::engine::general_purpose::URL_SAFE_NO_PAD
-        .decode(input)
-        .ok()
+    base64::engine::general_purpose::URL_SAFE_NO_PAD.decode(input).ok()
 }
 
 /// Base64url-encode (no padding).
@@ -167,10 +170,12 @@ mod tests {
             "email": "alice@example.com",
             "exp": past,
         });
-        let encoded_payload =
-            base64_url_encode(serde_json::to_string(&payload).unwrap().as_bytes());
+        let encoded_payload = base64_url_encode(
+            serde_json::to_string(&payload).unwrap().as_bytes(),
+        );
         let signing_input = format!("{}.{}", header, encoded_payload);
-        let mut mac = HmacSha256::new_from_slice(JWT_SECRET).expect("HMAC accepts any key length");
+        let mut mac = HmacSha256::new_from_slice(JWT_SECRET)
+            .expect("HMAC accepts any key length");
         mac.update(signing_input.as_bytes());
         let signature = mac.finalize().into_bytes();
         let encoded_signature = base64_url_encode(&signature);
@@ -186,10 +191,12 @@ mod tests {
             "sub": "user-123",
             "email": "alice@example.com",
         });
-        let encoded_payload =
-            base64_url_encode(serde_json::to_string(&payload).unwrap().as_bytes());
+        let encoded_payload = base64_url_encode(
+            serde_json::to_string(&payload).unwrap().as_bytes(),
+        );
         let signing_input = format!("{}.{}", header, encoded_payload);
-        let mut mac = HmacSha256::new_from_slice(JWT_SECRET).expect("HMAC accepts any key length");
+        let mut mac = HmacSha256::new_from_slice(JWT_SECRET)
+            .expect("HMAC accepts any key length");
         mac.update(signing_input.as_bytes());
         let signature = mac.finalize().into_bytes();
         let encoded_signature = base64_url_encode(&signature);

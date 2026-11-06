@@ -23,14 +23,12 @@ const usersMap = new Map<string, User>();
 const transactionsMap = new Map<string, Transaction>();
 const ratesMap = new Map<string, Rate>();
 const escrowsMap = new Map<string, Escrow>();
-const metaMap = new Map<string, string>();
 
 export function resetMemoryStore(): void {
   usersMap.clear();
   transactionsMap.clear();
   ratesMap.clear();
   escrowsMap.clear();
-  metaMap.clear();
 
   for (const u of SEED_USERS) usersMap.set(u.id, clone(u));
   for (const t of SEED_TRANSACTIONS) transactionsMap.set(t.id, clone(t));
@@ -306,18 +304,8 @@ export class MemoryEscrowRepository implements EscrowRepository {
   }
 }
 
-class MemoryMetaRepository {
-  async get(key: string): Promise<string | null> {
-    return metaMap.get(key) ?? null;
-  }
-  async set(key: string, value: string): Promise<void> {
-    metaMap.set(key, value);
-  }
-}
-
 export function createMemoryRepositories(): DataRepositories {
   return {
-    meta: new MemoryMetaRepository(),
     users: new MemoryUserRepository(),
     transactions: new MemoryTransactionRepository(),
     rates: new MemoryRateRepository(),

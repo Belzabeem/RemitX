@@ -129,7 +129,6 @@ pub struct EscrowState {
     pub cancelled_at: Option<u64>,
     pub fee_collected: i128,
     pub release_count: u32,
-    pub settled: i128,   // released + refunded so far; remaining = amount - settled
 }
 
 pub enum EscrowStatus { Locked, Released, Refunded, Cancelled }
@@ -176,32 +175,7 @@ deposit() ──► Locked ──┬──► release()  ──► Released   (p
 - **Time-locked.** `expires_at` must be in the future at deposit. All time checks use the ledger timestamp.
 - **Partial release.** `release()` accepts an optional `amount`. If it is less than the escrowed balance, the escrow stays `Locked` with the remainder intact.
 - **Fee on release.** A fee in basis points (capped at 500) is deducted and sent to the fee treasury.
-- **Partial settlement is tracked.** `settled` accumulates partial releases and partial refunds, so the sum paid out can never exceed `amount`. The escrow becomes `Released` or `Refunded` only when nothing remains.
-- **Pausable.** While paused, `deposit` and `release` fail with `Paused` (#13). `refund`, `cancel`, `extend_expiry` and all reads keep working so a sender can always recover funds.
-
-### Escrow errors
-
-| Code | Name | Raised when |
-| --- | --- | --- |
-| 1 | InvalidAmount | amount is zero/negative or exceeds what remains |
-| 2 | InvalidExpiry | expiry is not in the future, or extension is not later than current |
-| 3 | NotLocked | escrow is no longer `Locked` |
-| 4 | Expired | release attempted after expiry, or refund before expiry |
-| 5 | Unauthorized | caller is not the permitted party |
-| 6 | NotFound | unknown escrow id |
-| 7 | AlreadyReleased | already released |
-| 8 | AlreadyRefunded | already refunded |
-| 9 | CannotExtendExpired | extension attempted after expiry |
-| 10 | CannotCancelLocked | cancel not allowed in the current state |
-| 11 | InvalidFee | fee over the 500 bps (5%) cap |
-| 12 | InsufficientBalance | sender balance too low at deposit |
-| 13 | Paused | deposit or release while the contract is paused |
-
-### Escrow events
-
-All events use the topic prefix `("escrow", <action>, escrow_id)`: `deposit` (data: sender, recipient, amount, asset, expires_at), `release`, `refund`, `cancel`, `extend`. The off-chain indexer (`src/lib/indexer.ts`) reads these through Soroban RPC `getEvents`.
-
-> Error and event tables for Escrow were checked against `contracts/escrow/src/lib.rs`. Exchange, Staking and Governance sections above have not been re-audited in this pass.
+- **Pausable.** The platform can pause new activity in an emergency.
 
 ---
 

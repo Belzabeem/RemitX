@@ -150,8 +150,8 @@ impl CsrfManager {
     }
 
     fn sign(&self, payload: &str) -> String {
-        let mut mac =
-            HmacSha256::new_from_slice(&self.secret).expect("HMAC accepts any key length");
+        let mut mac = HmacSha256::new_from_slice(&self.secret)
+            .expect("HMAC accepts any key length");
         mac.update(payload.as_bytes());
         hex::encode(mac.finalize().into_bytes())
     }
@@ -200,9 +200,9 @@ const INJECTION_PATTERNS: &[&str] = &[
 
 /// Returns `true` if `input` matches any known prompt-injection pattern.
 pub fn detect_prompt_injection(input: &str) -> bool {
-    INJECTION_PATTERNS
-        .iter()
-        .any(|pat| Regex::new(pat).is_ok_and(|re| re.is_match(input)))
+    INJECTION_PATTERNS.iter().any(|pat| {
+        Regex::new(pat).map_or(false, |re| re.is_match(input))
+    })
 }
 
 // ── Request size limits ──────────────────────────────────────────────────
@@ -351,10 +351,7 @@ pub fn security_headers() -> Vec<(&'static str, &'static str)> {
         ("X-Content-Type-Options", "nosniff"),
         ("X-Frame-Options", "DENY"),
         ("Referrer-Policy", "strict-origin-when-cross-origin"),
-        (
-            "Permissions-Policy",
-            "camera=(), microphone=(), geolocation=()",
-        ),
+        ("Permissions-Policy", "camera=(), microphone=(), geolocation=()"),
         ("X-XSS-Protection", "1; mode=block"),
         ("Cross-Origin-Opener-Policy", "same-origin"),
         ("Cross-Origin-Resource-Policy", "same-origin"),
@@ -391,7 +388,10 @@ pub fn validate_reset_token(secret: &[u8], token: &str) -> Option<(String, u64)>
         _ => return None,
     };
 
-    let payload = base64_url_decode(encoded_payload)?;
+    let payload = match base64_url_decode(encoded_payload) {
+        Some(p) => p,
+        None => return None,
+    };
 
     let payload_str = match String::from_utf8(payload) {
         Ok(s) => s,
@@ -425,9 +425,7 @@ fn base64_url_encode(bytes: &[u8]) -> String {
 }
 
 fn base64_url_decode(input: &str) -> Option<Vec<u8>> {
-    base64::engine::general_purpose::URL_SAFE_NO_PAD
-        .decode(input)
-        .ok()
+    base64::engine::general_purpose::URL_SAFE_NO_PAD.decode(input).ok()
 }
 
 fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
@@ -440,6 +438,7 @@ fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
     }
     result == 0
 }
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -529,7 +528,10 @@ mod tests {
 
     #[test]
     fn sanitize_email_lowercases_and_trims() {
-        assert_eq!(sanitize_email("  Alice@Example.Com  "), "alice@example.com");
+        assert_eq!(
+            sanitize_email("  Alice@Example.Com  "),
+            "alice@example.com"
+        );
     }
 
     // ── Prompt injection ────────────────────────────────────────────────
@@ -644,8 +646,7 @@ mod tests {
         let token = format!("{}.{}", encoded, sig);
         assert!(validate_reset_token(b"secret", &token).is_none());
     }
-
-    #[test]
+}
     fn csrf_different_secrets_produce_different_tokens() {
         let m1 = CsrfManager::new(b"secret-one");
         let m2 = CsrfManager::new(b"secret-two");
@@ -654,4 +655,5 @@ mod tests {
         assert_ne!(t1, t2);
         assert!(!m2.validate_token(&t1, "session"));
     }
-}
+
+    // ── Sanitization ────────────────────────────────────────────────────

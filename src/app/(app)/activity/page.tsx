@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { Download, Search } from "lucide-react";
+import { Search } from "lucide-react";
 import PageHeader from "@/components/ui/PageHeader";
 import Notice from "@/components/ui/Notice";
 import TransactionTable, { type TransactionRow } from "@/components/ui/TransactionTable";
@@ -63,19 +63,9 @@ function ActivityInner() {
         title="Activity"
         description="Every transfer you've started, with its status on Stellar."
         actions={
-          <div className="flex items-center gap-2">
-            <a
-              href="/api/transactions/export?format=csv"
-              className="rx-btn rx-btn-secondary"
-              download="remitx-transactions.csv"
-            >
-              <Download size={14} aria-hidden="true" className="inline mr-1.5" />
-              Export CSV
-            </a>
-            <Link href="/send" className="rx-btn rx-btn-primary">
-              Send money
-            </Link>
-          </div>
+          <Link href="/send" className="rx-btn rx-btn-primary">
+            Send money
+          </Link>
         }
       />
 

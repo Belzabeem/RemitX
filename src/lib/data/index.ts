@@ -18,7 +18,6 @@ export type {
   TransactionRepository,
   RateRepository,
   EscrowRepository,
-  MetaRepository,
   DataRepositories,
 } from "./repositories";
 

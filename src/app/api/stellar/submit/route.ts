@@ -1,8 +1,7 @@
 import { NextRequest } from "next/server";
 import { data } from "@/lib/data";
 import { getCurrentUser } from "@/lib/auth";
-import { submitTransaction, NETWORK_PASSPHRASE } from "@/lib/stellar";
-import { assertSignedXdrMatches, TxMismatchError } from "@/lib/tx-guard";
+import { submitTransaction } from "@/lib/stellar";
 import { stellarSubmitSchema } from "@/lib/validations";
 import { successResponse, errorResponse, unauthorizedResponse } from "@/lib/api-response";
 
@@ -35,18 +34,6 @@ export async function POST(request: NextRequest) {
     }
     if (existing.status !== "pending") {
       return errorResponse(`Transaction is already in status: ${existing.status}`, 400);
-    }
-
-    try {
-      assertSignedXdrMatches(signedXdr, {
-        source: user.stellarPublicKey ?? "",
-        recipient: existing.recipientAddress,
-        fromAmount: existing.fromAmount,
-        networkPassphrase: NETWORK_PASSPHRASE,
-      });
-    } catch (err) {
-      if (err instanceof TxMismatchError) return errorResponse(err.message, 400);
-      throw err;
     }
 
     await data.transactions.update(transactionId, { status: "validating" });
