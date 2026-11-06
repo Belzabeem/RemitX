@@ -47,7 +47,7 @@ export default function Header() {
 
   return (
     <>
-      <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+      <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
       <header className="h-header-height fixed top-0 right-0 left-0 lg:left-sidebar-width z-40 bg-background/80 backdrop-blur-md border-b border-black/5 flex justify-between items-center px-margin-mobile lg:px-margin-desktop transition-all duration-300">
         {/* Left side - Mobile hamburger + search */}
