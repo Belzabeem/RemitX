@@ -27,6 +27,14 @@ export interface RateResult {
   source: "cache" | "api" | "fallback";
 }
 
+/** Thrown when no rate can be resolved from cache, live API, or fallback table. */
+export class RateUnavailableError extends Error {
+  constructor(fromAsset: string, toAsset: string) {
+    super(`No rate available for ${fromAsset}→${toAsset}`);
+    this.name = "RateUnavailableError";
+  }
+}
+
 // ---------------------------------------------------------------------------
 // In-memory cache (no database, no external service needed!)
 // ---------------------------------------------------------------------------
@@ -290,17 +298,8 @@ export async function getRate(
     };
   }
 
-  // ---- Step 4: Absolute last resort ----
-  console.warn(
-    `[rates] No rate available for ${from}→${to}, returning 1.00`
-  );
-  return {
-    rate: "1.00",
-    fromAsset: from,
-    toAsset: to,
-    fetchedAt: new Date().toISOString(),
-    source: "fallback",
-  };
+  // ---- Step 4: No rate available anywhere ----
+  throw new RateUnavailableError(from, to);
 }
 
 /**
