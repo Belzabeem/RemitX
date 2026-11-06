@@ -9,18 +9,11 @@ import Notice from "@/components/ui/Notice";
 import CopyButton from "@/components/ui/CopyButton";
 import { Ledger, LedgerRow, LedgerStack } from "@/components/ui/Ledger";
 import { checkStellarPublicKey } from "@/lib/stellar-address";
-import { formatAmount, formatRate, truncateMiddle } from "@/lib/format";
-import { explorerTxUrl, NETWORK_LABEL } from "@/lib/network-label";
-
-interface StoredTx {
-  transactionId: string;
-  xdr: string;
-  fromAsset: string;
-  toAsset: string;
-  fromAmount: string;
-  toAmount: string;
-  recipientAddress: string;
-}
+import { formatAmount, formatRate, formatXlmFee, truncateMiddle } from "@/lib/format";
+import { explorerTxUrl } from "@/lib/network-label";
+import { api } from "@/lib/client-api";
+import { useWallet } from "@/lib/wallet-context";
+import { clearPrepared, loadPrepared } from "@/lib/prepared-transfer";
 
 const STEPS = ["Details", "Review", "Sent"];
 
@@ -53,12 +46,8 @@ function ReviewInner() {
   const params = useSearchParams();
   const transactionId = params.get("transactionId");
 
-  const [tx] = useState<StoredTx | null>(() => {
-    if (typeof window === "undefined" || !transactionId) return null;
-    const raw = sessionStorage.getItem(`remitx:tx:${transactionId}`);
-    return raw ? JSON.parse(raw) : null;
-  });
-  const [secretKey, setSecretKey] = useState("");
+  const { address, loaded: walletLoaded, openModal, signTransaction } = useWallet();
+  const [tx] = useState(() => loadPrepared(transactionId));
   const [status, setStatus] = useState<"idle" | "submitting" | "confirmed" | "failed">("idle");
   const [error, setError] = useState<string | null>(null);
   const [hash, setHash] = useState<string | null>(null);
@@ -67,28 +56,31 @@ function ReviewInner() {
   const recipientCheck = checkStellarPublicKey(tx?.recipientAddress ?? "");
 
   const handleConfirm = async () => {
-    if (!tx || !secretKey.trim() || !recipientCheck.valid) return;
+    if (!tx || !recipientCheck.valid) return;
     setStatus("submitting");
     setError(null);
     try {
-      const res = await fetch("/api/stellar/sign-and-submit", {
+      // The wallet shows the transaction and signs it; RemitX never sees a secret key.
+      const signedXdr = await signTransaction(tx.xdr, tx.networkPassphrase);
+      const res = await api<{ status: string; stellarTxHash: string | null }>("/api/stellar/submit", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ transactionId: tx.transactionId, xdr: tx.xdr, secretKey: secretKey.trim() }),
+        body: JSON.stringify({ transactionId: tx.transactionId, signedXdr }),
       });
-      const json = await res.json();
-      if (res.ok && json.data.status === "confirmed") {
-        setStatus("confirmed");
-        setHash(json.data.stellarTxHash);
-        setSecretKey("");
-        sessionStorage.removeItem(`remitx:tx:${tx.transactionId}`);
-      } else {
-        setStatus("failed");
-        setError(json.data?.resultCode || json.error || "Horizon rejected this transaction.");
+      if (!res.ok) throw new Error(res.error);
+      if (res.data.status !== "confirmed" || !res.data.stellarTxHash) {
+        throw new Error("The network rejected the transfer, so nothing was sent. Check your balance and try again.");
       }
-    } catch {
+      setStatus("confirmed");
+      setHash(res.data.stellarTxHash);
+      clearPrepared(tx.transactionId);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "";
       setStatus("failed");
-      setError("Couldn't reach the server. Nothing was sent.");
+      setError(
+        /reject|denied|declin|cancel|closed/i.test(msg) && !/network rejected/i.test(msg)
+          ? "You declined the request in your wallet. Nothing was sent."
+          : msg || "Something went wrong. Nothing was sent."
+      );
     }
   };
 
@@ -108,9 +100,9 @@ function ReviewInner() {
   }
 
   const done = status === "confirmed";
-  const effectiveRate = parseFloat(tx.toAmount) / parseFloat(tx.fromAmount);
   const busy = status === "submitting";
-  const canSign = !!secretKey.trim() && recipientCheck.valid && !busy;
+  const needsWallet = walletLoaded && !address;
+  const canSign = recipientCheck.valid && !!address && !busy;
 
   return (
     <div className="rx-page">
@@ -127,17 +119,22 @@ function ReviewInner() {
             {formatAmount(tx.toAmount, tx.toAsset)}
             <span className="ml-2 text-[20px] font-normal tracking-normal text-muted">{tx.toAsset}</span>
           </p>
+          <p className="rx-small mt-2">
+            At least {formatAmount(tx.destMin, tx.toAsset)} {tx.toAsset} is guaranteed. If the recipient would get less, the network rejects the transfer and nothing is sent.
+          </p>
 
           <div className="mt-6 max-w-[520px]">
             <Ledger>
               <LedgerRow label="You send">
                 {formatAmount(tx.fromAmount, tx.fromAsset)} {tx.fromAsset}
               </LedgerRow>
+              <LedgerRow label="Route">{tx.route.length > 1 ? tx.route.join(" > ") : "Direct payment"}</LedgerRow>
               <LedgerRow label="Rate">
-                {Number.isFinite(effectiveRate) ? `1 ${tx.fromAsset} = ${formatRate(effectiveRate)} ${tx.toAsset}` : "\u2013"}
+                1 {tx.fromAsset} = {formatRate(tx.cost.effectiveRate)} {tx.toAsset}
               </LedgerRow>
-              <LedgerRow label="RemitX fee">None</LedgerRow>
-              <LedgerRow label="Arrives">About 5 seconds</LedgerRow>
+              <LedgerRow label="RemitX fee">{tx.cost.platformFee === "0" ? "None" : tx.cost.platformFee}</LedgerRow>
+              <LedgerRow label="Network fee">{formatXlmFee(tx.cost.networkFeeStroops)}</LedgerRow>
+              <LedgerRow label="Arrives">{tx.cost.estimatedArrival}</LedgerRow>
               <LedgerRow label="Total cost" total>
                 {formatAmount(tx.fromAmount, tx.fromAsset)} {tx.fromAsset}
               </LedgerRow>
@@ -162,23 +159,9 @@ function ReviewInner() {
             {!done ? (
               <>
                 <h2 className="rx-h2">Sign and send</h2>
-                <div className="mt-4">
-                  <label className="rx-label" htmlFor="secret-key">Your Stellar secret key</label>
-                  <input
-                    id="secret-key"
-                    type="password"
-                    className="rx-input rx-mono"
-                    style={{ fontSize: 14 }}
-                    value={secretKey}
-                    onChange={(e) => setSecretKey(e.target.value)}
-                    placeholder="S…"
-                    autoComplete="off"
-                    spellCheck={false}
-                  />
-                  <p className="rx-hint">
-                    {`${NETWORK_LABEL} only. It signs this one transaction and isn't stored.`}
-                  </p>
-                </div>
+                <p className="mt-3 text-[14.5px] leading-[22px] text-muted">
+                  Your wallet will show this transfer and ask you to approve it. RemitX never sees your secret key.
+                </p>
 
                 {status === "failed" && error && (
                   <div className="mt-3">
@@ -186,11 +169,17 @@ function ReviewInner() {
                   </div>
                 )}
 
-                <div className="rx-glow mt-6" data-off={!canSign}>
-                  <button type="button" className="rx-btn rx-btn-primary rx-btn-block" onClick={handleConfirm} disabled={!canSign}>
-                    {busy ? "Signing and sending…" : "Sign and send"}
+                {needsWallet ? (
+                  <button type="button" className="rx-btn rx-btn-primary rx-btn-block mt-6" onClick={openModal}>
+                    Connect wallet
                   </button>
-                </div>
+                ) : (
+                  <div className="rx-glow mt-6" data-off={!canSign}>
+                    <button type="button" className="rx-btn rx-btn-primary rx-btn-block" onClick={handleConfirm} disabled={!canSign}>
+                      {busy ? "Waiting for your wallet…" : "Sign in wallet"}
+                    </button>
+                  </div>
+                )}
                 <Link href="/send" className="rx-btn rx-btn-quiet rx-btn-block mt-5">
                   Edit transfer
                 </Link>
@@ -207,6 +196,9 @@ function ReviewInner() {
                   <a href={explorerTxUrl(hash)} target="_blank" rel="noreferrer" className="rx-link mt-1 inline-flex items-center gap-1.5 text-[14px]">
                     View on Stellar Expert <ExternalLink size={13} aria-hidden="true" />
                   </a>
+                  <Link href={`/verify?hash=${hash}`} className="rx-link mt-2 inline-flex text-[14px]">
+                    Verify this transfer
+                  </Link>
                   <div className="mt-6 flex flex-col gap-2">
                     <Link href="/activity" className="rx-btn rx-btn-primary rx-btn-block">View in Activity</Link>
                     <Link href="/send" className="rx-btn rx-btn-secondary rx-btn-block">Send another</Link>

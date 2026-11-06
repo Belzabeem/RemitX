@@ -10,8 +10,6 @@ export const dynamic = "force-dynamic";
 /** Real Horizon liquidity pool reserves for a given asset code (top pool by
  * reserve size). Returns null data if the asset has no configured issuer or
  * no pool exists - never a fabricated figure. */
-// TODO: backend#rate-limiting — Per-IP / per-user API rate limiting.
-// TODO: backend#rpc-migration — Migrate Horizon liquidity pool queries to Stellar RPC.
 export async function GET(request: NextRequest) {
   try {
     const user = await getCurrentUser();

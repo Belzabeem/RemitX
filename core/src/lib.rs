@@ -31,6 +31,8 @@ pub mod types;
 pub mod validation;
 
 pub use anchors::{estimate_fee, list_anchors, Anchor, AnchorFilters};
+pub use auth::{hash_password, verify_password, SALT_ROUNDS};
+pub use jwt::{sign_token, verify_token, SessionPayload};
 pub use password::{get_password_strength, PasswordCheck, PasswordStrength, MIN_PASSWORD_SCORE};
 pub use rates::{convert, default_fetch, now_seconds, RateCache, RateEntry, RateError};
 pub use security::{
@@ -42,5 +44,3 @@ pub use validation::{
     validate_amount, validate_email, validate_password, validate_stellar_address, ValidationError,
     ValidationResult,
 };
-pub use jwt::{sign_token, verify_token, SessionPayload};
-pub use auth::{hash_password, verify_password, SALT_ROUNDS};

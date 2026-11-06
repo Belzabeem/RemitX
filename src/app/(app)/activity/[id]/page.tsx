@@ -150,6 +150,14 @@ export default function TransactionDetailPage() {
         description={<StatusMark state={tx.status} />}
       />
 
+      {tx.status === "pending" && (
+        <div className="mb-10 max-w-[640px]">
+          <Notice tone="caution">
+            This transfer was prepared but never signed, so no money moved. Start a new one from Send money.
+          </Notice>
+        </div>
+      )}
+
       <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-12 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] lg:gap-16">
         <section aria-label="Details">
           <Ledger>
@@ -173,6 +181,9 @@ export default function TransactionDetailPage() {
                 <a href={explorerTxUrl(tx.stellarTxHash)} target="_blank" rel="noreferrer" className="rx-link mt-2 flex w-fit items-center gap-1.5 text-[14px]">
                   View on Stellar Expert <ExternalLink size={13} aria-hidden="true" />
                 </a>
+                <Link href={`/verify?hash=${tx.stellarTxHash}`} className="rx-link mt-2 flex w-fit text-[14px]">
+                  Verify this transfer
+                </Link>
               </LedgerStack>
             )}
             <LedgerStack label="Transfer ID" action={<CopyButton value={tx.id} label="Copy transfer ID" />}>

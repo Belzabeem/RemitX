@@ -6,17 +6,6 @@
  * Connect -> the wallet reveals its public key -> the wallet signs a SEP-10
  * challenge (never submitted to the network) -> the server starts a session.
  * Transfers are signed in the wallet; RemitX never sees a secret key.
- *
- * Supported wallets (Stellar Wallets Kit): Albedo, xBull, Freighter, Rabet,
- * Hana. Filtered in loadKit() below.
- *
- * Roadmap / issue candidates:
- *   - frontend#varial-wallet — Add Varial wallet support
- *     (https://github.com/stellar/varial) alongside Stellar Wallets Kit.
- *   - frontend#smart-accounts — Add Smart Accounts (passkeys) support for
- *     passwordless wallet onboarding per Stellar best practices.
- *   - frontend#wallet-switch-network — Add UI to switch wallet between
- *     testnet and mainnet when mainnet is enabled.
  */
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "./client-api";
@@ -60,16 +49,16 @@ let kitPromise: Promise<Kit> | null = null;
 function loadKit(): Promise<Kit> {
   if (!kitPromise) {
     kitPromise = (async () => {
-      const [{ StellarWalletsKit }, { defaultModules }] = await Promise.all([
+      const [{ StellarWalletsKit }, { defaultModules }, { Networks }] = await Promise.all([
         import("@creit.tech/stellar-wallets-kit/sdk"),
         import("@creit.tech/stellar-wallets-kit/modules/utils"),
+        import("@creit.tech/stellar-wallets-kit/types"),
       ]);
       // Browser/extension wallets that sign locally. Wallets that need a relay service
       // (WalletConnect) or hardware are left out until those origins are allowed.
-      // TODO: frontend#varial-wallet — Add Varial as a first-class wallet option
-      // (currently filtered in above; uncomment/add Varial module when ready).
       StellarWalletsKit.init({
-        modules: defaultModules({ filterBy: (m) => /albedo|xbull|varial|freighter|rabet|hana/i.test(m.productId + m.productName) }),
+        network: Networks.TESTNET,
+        modules: defaultModules({ filterBy: (m) => /albedo|xbull|varial|freighter|rabet|hana|lobstr|metamask/i.test(m.productId + m.productName) }),
       });
       return StellarWalletsKit;
     })();

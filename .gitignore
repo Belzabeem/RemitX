@@ -47,3 +47,6 @@ yarn-error.log*
 
 # TypeScript
 tsconfig.tsbuildinfo
+
+# Test coverage
+coverage/

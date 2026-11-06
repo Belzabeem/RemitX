@@ -4,13 +4,13 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import PageHeader from "@/components/ui/PageHeader";
 import Notice from "@/components/ui/Notice";
-import Modal from "@/components/ui/Modal";
 import CopyButton from "@/components/ui/CopyButton";
 import { Ledger, LedgerRow } from "@/components/ui/Ledger";
 import TransactionTable, { type TransactionRow } from "@/components/ui/TransactionTable";
-import { useCurrentUser } from "@/components/app/user-context";
+import { useWallet } from "@/lib/wallet-context";
 import { formatAmount, formatTime } from "@/lib/format";
 import { NETWORK_LABEL } from "@/lib/network-label";
+import { api } from "@/lib/client-api";
 
 interface Balance {
   asset: string;
@@ -27,21 +27,19 @@ const FIRST_TRANSFER_STEPS = [
   "Enter the amount and the recipient's Stellar address.",
   "RemitX looks for the cheapest route for that corridor.",
   "Check the rate, fees and arrival time before anything is signed.",
-  "Send with a Stellar path payment.",
+  "Approve it in your wallet. It goes out as a Stellar path payment.",
   "The recipient is paid in about five seconds.",
 ];
 
 export default function OverviewPage() {
-  const { user, refresh } = useCurrentUser();
+  const { address, loaded: walletLoaded, openModal } = useWallet();
   const [loading, setLoading] = useState(true);
   const [activated, setActivated] = useState(false);
   const [balances, setBalances] = useState<Balance[]>([]);
   const [transactions, setTransactions] = useState<TransactionRow[]>([]);
   const [network, setNetwork] = useState<NetworkStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [activating, setActivating] = useState(false);
-  const [secretKey, setSecretKey] = useState<string | null>(null);
-  const [keySaved, setKeySaved] = useState(false);
+  const [funding, setFunding] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -68,33 +66,16 @@ export default function OverviewPage() {
   useEffect(() => {
     const id = setTimeout(() => void load(), 0);
     return () => clearTimeout(id);
-  }, [load]);
+  }, [load, address]);
 
-  // TODO: frontend#wallet-switch-network — Add UI to switch wallet between
-  // testnet and mainnet when mainnet is enabled (see Stellar skill: Wallets).
-  const activateWallet = async () => {
-    setActivating(true);
+  // Testnet only: Friendbot sends free test XLM to the connected wallet.
+  const fundAccount = async () => {
+    setFunding(true);
     setError(null);
-    try {
-      const res = await fetch("/api/stellar/account", { method: "POST" });
-      const json = await res.json();
-      if (res.ok) {
-        setKeySaved(false);
-        setSecretKey(json.data.secretKey);
-      } else {
-        setError(json.error || "Couldn't create the wallet.");
-      }
-    } catch {
-      setError("Couldn't create the wallet. Check your connection and try again.");
-    } finally {
-      setActivating(false);
-    }
-  };
-
-  const finishActivation = async () => {
-    setSecretKey(null);
-    setLoading(true);
-    await Promise.all([load(), refresh()]);
+    const res = await api("/api/stellar/fund", { method: "POST" });
+    setFunding(false);
+    if (!res.ok) return setError(res.error);
+    await load();
   };
 
   const xlm = balances.find((b) => b.asset === "XLM");
@@ -121,20 +102,29 @@ export default function OverviewPage() {
       <div className="grid grid-cols-[minmax(0,1fr)] gap-12 lg:grid-cols-[minmax(0,1fr)_300px] lg:gap-16">
         <div>
           {/* Balance */}
-          {loading ? (
+          {loading || !walletLoaded ? (
             <div aria-busy="true">
               <span className="rx-skel" style={{ width: 80, height: 14 }} />
               <span className="rx-skel mt-4" style={{ width: 280, height: 52 }} />
             </div>
+          ) : !address ? (
+            <div className="rx-sheet rx-sheet-pad">
+              <h2 className="rx-h2">Connect a Stellar wallet</h2>
+              <p className="mt-2 max-w-[52ch] text-[14.5px] leading-[22px] text-muted">
+                Your balance is read straight from the Stellar network once you connect. You approve every transfer in your own wallet, and RemitX never sees your secret key.
+              </p>
+              <button type="button" className="rx-btn rx-btn-primary mt-5" onClick={openModal}>
+                Connect wallet
+              </button>
+            </div>
           ) : !activated ? (
             <div className="rx-sheet rx-sheet-pad">
-              <h2 className="rx-h2">Create your {NETWORK_LABEL.toLowerCase()} wallet</h2>
+              <h2 className="rx-h2">This account isn&apos;t funded yet</h2>
               <p className="mt-2 max-w-[52ch] text-[14.5px] leading-[22px] text-muted">
-                RemitX opens a Stellar account for you and funds it through Friendbot. You&apos;ll be shown the secret key once,
-                and it isn&apos;t stored anywhere on our side.
+                A new Stellar account exists only after it receives its first XLM. On {NETWORK_LABEL.toLowerCase()}, Friendbot sends free test XLM.
               </p>
-              <button type="button" className="rx-btn rx-btn-primary mt-5" onClick={activateWallet} disabled={activating}>
-                {activating ? "Creating wallet…" : "Create wallet"}
+              <button type="button" className="rx-btn rx-btn-primary mt-5" onClick={fundAccount} disabled={funding}>
+                {funding ? "Requesting…" : "Fund with test XLM"}
               </button>
             </div>
           ) : (
@@ -211,42 +201,18 @@ export default function OverviewPage() {
             )}
           </section>
 
-          {user?.stellarPublicKey && (
+          {address && (
             <section>
               <h2 className="rx-h2">Your address</h2>
               <div className="mt-2 flex items-start justify-between gap-2">
-                <span className="rx-mono">{user.stellarPublicKey}</span>
-                <CopyButton value={user.stellarPublicKey} label="Copy your Stellar address" />
+                <span className="rx-mono">{address}</span>
+                <CopyButton value={address} label="Copy your Stellar address" />
               </div>
               <p className="rx-small mt-2">Share this to receive payments.</p>
             </section>
           )}
         </aside>
       </div>
-
-      {secretKey && (
-        <Modal title="Save your secret key">
-          <p className="text-[14.5px] leading-[22px] text-ink-2">
-            This is the only time it will be shown. Anyone who has it controls the wallet, so keep it somewhere private.
-          </p>
-          <div className="mt-4 flex items-start justify-between gap-2 rounded-[10px] border border-line-strong bg-paper p-3">
-            <span className="rx-mono" data-testid="secret-key">{secretKey}</span>
-            <CopyButton value={secretKey} label="Copy secret key" />
-          </div>
-          <label className="mt-5 flex cursor-pointer items-start gap-3 text-[14.5px] leading-5">
-            <input
-              type="checkbox"
-              checked={keySaved}
-              onChange={(e) => setKeySaved(e.target.checked)}
-              className="mt-0.5 h-4 w-4 accent-[#111]"
-            />
-            I&apos;ve saved it somewhere safe.
-          </label>
-          <button type="button" className="rx-btn rx-btn-primary rx-btn-block mt-5" disabled={!keySaved} onClick={finishActivation}>
-            Continue
-          </button>
-        </Modal>
-      )}
     </div>
   );
 }

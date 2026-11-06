@@ -1,14 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Check, Eye, EyeOff, X } from "lucide-react";
+import { Check, Eye, EyeOff, Wallet, X } from "lucide-react";
 import BrandMark from "@/components/BrandMark";
 import Notice from "@/components/ui/Notice";
 import RouteTrace from "@/components/ui/RouteTrace";
+import GlobeNetwork from "@/components/ui/GlobeNetwork";
 import TurnstileWidget from "@/components/TurnstileWidget";
 import { getPasswordStrength, MIN_PASSWORD_SCORE } from "@/lib/password-strength";
+import { useWallet } from "@/lib/wallet-context";
 
 function PasswordField({
   id,
@@ -56,6 +58,8 @@ function PasswordField({
 
 export default function LoginPage() {
   const router = useRouter();
+  const { address, openModal } = useWallet();
+  const startedHere = useRef(false);
   const [isRegister, setIsRegister] = useState(false);
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
@@ -70,6 +74,16 @@ export default function LoginPage() {
   const strength = getPasswordStrength(password);
   const passwordsMatch = password === confirmPassword;
   const confirmTouched = confirmPassword.length > 0;
+
+  // Only follow a wallet sign-in that was started from this page.
+  useEffect(() => {
+    if (address && startedHere.current) router.push("/dashboard");
+  }, [address, router]);
+
+  function handleWalletLogin() {
+    startedHere.current = true;
+    openModal();
+  }
 
   function switchMode() {
     setIsRegister(!isRegister);
@@ -143,7 +157,7 @@ export default function LoginPage() {
           <div className="mx-auto flex w-full max-w-[400px] flex-1 flex-col justify-center py-10">
             <h1 className="rx-title">{isRegister ? "Create your account" : "Sign in"}</h1>
             <p className="rx-lede">
-              {isRegister ? "It takes a minute. You'll create a testnet wallet after." : "Pick up where you left off."}
+              {isRegister ? "It takes a minute. You'll connect a Stellar wallet after." : "Pick up where you left off."}
             </p>
 
             <form onSubmit={handleSubmit} className="mt-8 space-y-5" noValidate={false}>
@@ -228,6 +242,10 @@ export default function LoginPage() {
               <span className="h-px flex-1 bg-line" />
             </div>
 
+            <button type="button" className="rx-btn rx-btn-secondary rx-btn-block mb-3" onClick={handleWalletLogin} disabled={demoLoading || loading}>
+              <Wallet size={17} aria-hidden="true" /> Continue with a Stellar wallet
+            </button>
+
             <button type="button" className="rx-btn rx-btn-secondary rx-btn-block" onClick={handleDemoLogin} disabled={demoLoading || loading}>
               {demoLoading ? "Opening demo…" : "Try the demo account"}
             </button>
@@ -243,12 +261,17 @@ export default function LoginPage() {
         </main>
 
         <aside className="rx-authside" aria-hidden="true">
-          <p className="max-w-[22ch] text-balance text-[32px] font-medium leading-[1.12] tracking-[-0.035em]">
-            Know what it costs before you send it.
-          </p>
+          <div>
+            <p className="max-w-[22ch] text-balance text-[30px] font-medium leading-[1.14] tracking-[-0.035em]">
+              Know what it costs before you send it.
+            </p>
+          </div>
+
+          <GlobeNetwork />
+
           <div className="max-w-[420px]">
             <RouteTrace nodes={["You", "Stellar", "Home"]} animateKey="auth" />
-            <ul className="mt-8 space-y-4 text-[15px] leading-[22px] text-ink-2">
+            <ul className="mt-6 space-y-3 text-[14px] leading-[20px] text-ink-2">
               <li>Rate, fees and arrival time are shown before you confirm.</li>
               <li>Transfers settle in about five seconds.</li>
               <li>If escrowed funds are never released, you can refund them after expiry.</li>

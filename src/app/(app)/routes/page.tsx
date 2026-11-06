@@ -4,6 +4,10 @@ import { Fragment, useCallback, useEffect, useState } from "react";
 import { ArrowLeftRight } from "lucide-react";
 import PageHeader from "@/components/ui/PageHeader";
 import Notice from "@/components/ui/Notice";
+import RouteCost, { type RouteCostData } from "@/components/ui/RouteCost";
+import { api } from "@/lib/client-api";
+import { explainNoRoute } from "@/lib/route-diagnosis";
+import { useAssets } from "@/lib/use-assets";
 import { formatAmount, formatRate, formatTime, sanitizeDecimal } from "@/lib/format";
 
 interface Route {
@@ -12,13 +16,32 @@ interface Route {
   path: string[];
 }
 
-const ASSETS = ["XLM", "USDC", "EURC"];
+interface Quote {
+  hops: string[];
+  sendAmount: string;
+  receiveAmount: string;
+}
+interface Discovery {
+  from: string;
+  to: string;
+  best: (Quote & { cost: RouteCostData }) | null;
+  alternatives: Quote[];
+  source: "horizon" | "cache";
+}
 
 export default function RoutesPage() {
-  const [fromAsset, setFromAsset] = useState("USDC");
-  const [toAsset, setToAsset] = useState("XLM");
+  const ASSETS = useAssets();
+  // The person's pick, falling back to a default that exists on this deployment.
+  const [pick, setPick] = useState<{ from?: string; to?: string }>({});
+  const fromAsset = pick.from && ASSETS.includes(pick.from) ? pick.from : ASSETS.includes("USDC") ? "USDC" : "XLM";
+  const toAsset = pick.to && ASSETS.includes(pick.to) ? pick.to : "XLM";
+  const setFromAsset = (from: string) => setPick((p) => ({ ...p, from }));
+  const setToAsset = (to: string) => setPick((p) => ({ ...p, to }));
   const [amount, setAmount] = useState("1000");
   const [routes, setRoutes] = useState<Route[]>([]);
+  const [bestCost, setBestCost] = useState<RouteCostData | null>(null);
+  const [bestHops, setBestHops] = useState<string[]>([]);
+  const [fromCache, setFromCache] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchedAt, setSearchedAt] = useState<Date | null>(null);
@@ -32,25 +55,27 @@ export default function RoutesPage() {
     }
     setLoading(true);
     setError(null);
-    try {
-      const res = await fetch(`/api/stellar/routes?from=${fromAsset}&to=${toAsset}&amount=${value}`);
-      const json = await res.json();
-      if (res.ok) {
-        const sorted = [...json.data.routes].sort(
-          (a: Route, b: Route) => parseFloat(b.destinationAmount) - parseFloat(a.destinationAmount)
-        );
-        setRoutes(sorted);
-        setSearchedAt(new Date());
-      } else {
-        setRoutes([]);
-        setError(json.error || "No route is available for this pair right now.");
-      }
-    } catch {
+    const res = await api<Discovery>(`/api/stellar/routes?from=${fromAsset}&to=${toAsset}&amount=${value}`);
+    if (res.ok && res.data.best) {
+      const { best, alternatives, source } = res.data;
+      // A direct payment has a single asset in its path; show it as source then destination.
+      const asPath = (hops: string[]) => (hops.length < 2 ? [fromAsset, toAsset] : hops);
+      const all = [best, ...alternatives].map((q) => ({
+        sourceAmount: q.sendAmount,
+        destinationAmount: q.receiveAmount,
+        path: asPath(q.hops),
+      }));
+      setRoutes(all.sort((a, b) => parseFloat(b.destinationAmount) - parseFloat(a.destinationAmount)));
+      setBestCost(best.cost);
+      setBestHops(best.hops);
+      setFromCache(source === "cache");
+      setSearchedAt(new Date());
+    } else {
       setRoutes([]);
-      setError("Couldn't reach the server.");
-    } finally {
-      setLoading(false);
+      setBestCost(null);
+      setError(res.ok ? await explainNoRoute(fromAsset, toAsset, String(value)) : res.error);
     }
+    setLoading(false);
   }, [fromAsset, toAsset, amount]);
 
   // Search as the inputs settle rather than on every keystroke.
@@ -167,6 +192,16 @@ export default function RoutesPage() {
               );
             })}
           </ol>
+        )}
+
+        {!loading && routes.length > 0 && bestCost && (
+          <div className="mt-10 max-w-[520px]">
+            <h2 className="rx-h2 mb-2">Best route, in full</h2>
+            <RouteCost from={fromAsset} to={toAsset} hops={bestHops} cost={bestCost} />
+            <p className="rx-small mt-3">
+              Quote read from Horizon{fromCache ? " (cached for up to 15 seconds)" : ""}. Prices move, so the final quote is taken again when you send.
+            </p>
+          </div>
         )}
       </section>
     </div>

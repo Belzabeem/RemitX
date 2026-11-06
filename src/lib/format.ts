@@ -94,3 +94,9 @@ export function csvCell(value: string | number): string {
   const s = String(value);
   return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
+
+/** Network fees are tiny; show them in XLM with trailing zeros trimmed (100 stroops = 0.00001 XLM). */
+export function formatXlmFee(stroops: number): string {
+  if (!Number.isFinite(stroops)) return EMPTY;
+  return `${(stroops / 1e7).toFixed(7).replace(/0+$/, "").replace(/\.$/, "")} XLM`;
+}

@@ -1,3 +1,4 @@
+import { getJwtSecret } from "./secrets";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { cookies } from "next/headers";
@@ -5,8 +6,6 @@ import { data } from "./data";
 import type { User } from "./data/types";
 import { logSecurityEvent } from "./security";
 
-const JWT_SECRET =
-  process.env.JWT_SECRET || "dev-jwt-secret-change-in-production-min-32-chars-long";
 const SESSION_COOKIE = "remitx_session";
 const SALT_ROUNDS = 12;
 
@@ -22,6 +21,8 @@ export async function verifyPassword(
   password: string,
   hash: string
 ): Promise<boolean> {
+  // Wallet-only accounts have no password; an empty hash must never match.
+  if (!hash) return false;
   return bcrypt.compare(password, hash);
 }
 
@@ -29,7 +30,7 @@ export async function verifyPassword(
 export function signToken(user: SafeUser, sessionVersion = 1): string {
   return jwt.sign(
     { sub: user.id, email: user.email, sv: sessionVersion },
-    JWT_SECRET,
+    getJwtSecret(),
     { expiresIn: "7d" }
   );
 }
@@ -39,7 +40,7 @@ export function verifyToken(
   token: string
 ): { sub: string; email: string; sv: number } | null {
   try {
-    const decoded = jwt.verify(token, JWT_SECRET) as {
+    const decoded = jwt.verify(token, getJwtSecret()) as {
       sub: string;
       email: string;
       sv?: number;

@@ -16,6 +16,10 @@ export function createPrismaRepositories(): DataRepositories {
   };
 
   return {
+    meta: {
+      get: () => notEnabled("meta.get"),
+      set: () => notEnabled("meta.set"),
+    },
     users: {
       findById: () => notEnabled("users.findById"),
       findByEmail: () => notEnabled("users.findByEmail"),
@@ -45,10 +49,6 @@ export function createPrismaRepositories(): DataRepositories {
       create: () => notEnabled("escrows.create"),
       update: () => notEnabled("escrows.update"),
       list: () => notEnabled("escrows.list"),
-    },
-    meta: {
-      get: () => notEnabled("meta.get"),
-      set: () => notEnabled("meta.set"),
     },
   };
 }

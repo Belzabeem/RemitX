@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { Search } from "lucide-react";
+import { Download, Search } from "lucide-react";
 import PageHeader from "@/components/ui/PageHeader";
 import Notice from "@/components/ui/Notice";
 import TransactionTable, { type TransactionRow } from "@/components/ui/TransactionTable";
@@ -63,9 +63,20 @@ function ActivityInner() {
         title="Activity"
         description="Every transfer you've started, with its status on Stellar."
         actions={
-          <Link href="/send" className="rx-btn rx-btn-primary">
-            Send money
-          </Link>
+          <>
+            {/* Plain links so the browser downloads the file; these are API routes, not pages. */}
+            {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
+            <a href="/api/transactions/export?format=csv" className="rx-btn rx-btn-secondary rx-btn-sm">
+              <Download size={15} aria-hidden="true" /> CSV
+            </a>
+            {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
+            <a href="/api/transactions/export?format=json" className="rx-btn rx-btn-secondary rx-btn-sm">
+              <Download size={15} aria-hidden="true" /> JSON
+            </a>
+            <Link href="/send" className="rx-btn rx-btn-primary">
+              Send money
+            </Link>
+          </>
         }
       />
 

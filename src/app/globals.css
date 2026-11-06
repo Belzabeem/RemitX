@@ -346,6 +346,31 @@ body { background: #f7f7f5; color: #111; -webkit-font-smoothing: antialiased; fo
 @keyframes rx-dot { to { opacity: 1; } }
 .rx-trace-dot[data-idle="true"] { animation: none; }
 
+/* Continuous traveling pulse and illuminated wave when loop is active */
+.rx-trace[data-loop="true"] .rx-trace-dot {
+  opacity: 0.18;
+  animation: rx-dot-travel 3.2s ease-in-out infinite;
+  animation-delay: var(--delay, 0s);
+  transform-origin: center;
+}
+@keyframes rx-dot-travel {
+  0%, 100% { opacity: 0.18; transform: scale(1); }
+  12% { opacity: 0.95; transform: scale(1.35); fill: var(--color-ink); }
+  24% { opacity: 0.18; transform: scale(1); }
+}
+
+.rx-trace-packet-halo { fill: var(--color-ink); pointer-events: none; }
+.rx-trace-packet-core { fill: var(--color-ink); pointer-events: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .rx-trace-animated { display: none !important; }
+  .rx-trace[data-loop="true"] .rx-trace-dot {
+    animation: none !important;
+    opacity: 0.45 !important;
+    transform: none !important;
+  }
+}
+
 /* ---- Route path (list rows): asset nodes joined by a dotted leader ------ */
 .rx-path { display: flex; align-items: center; gap: 8px; }
 .rx-path-node { flex: none; padding: 3px 10px; border: 1px solid var(--color-line-strong); border-radius: 999px; font-size: 13px; font-weight: 500; }
@@ -375,8 +400,8 @@ body { background: #f7f7f5; color: #111; -webkit-font-smoothing: antialiased; fo
 /* ---- Auth + standalone pages -------------------------------------------- */
 .rx-authgrid { min-height: 100vh; display: grid; grid-template-columns: 1fr; }
 @media (min-width: 1024px) { .rx-authgrid { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
-.rx-authside { display: none; background: #eeede9; color: var(--color-ink); padding: 56px 64px; }
-@media (min-width: 1024px) { .rx-authside { display: flex; flex-direction: column; justify-content: space-between; } }
+.rx-authside { display: none; background: #eeede9; color: var(--color-ink); padding: 44px 52px; overflow-y: auto; }
+@media (min-width: 1024px) { .rx-authside { display: flex; flex-direction: column; justify-content: space-between; gap: 24px; min-height: 100vh; } }
 .rx-strength { display: flex; gap: 4px; }
 .rx-strength span { flex: 1; height: 3px; border-radius: 2px; background: var(--color-line); transition: background-color .2s; }
 
@@ -384,3 +409,14 @@ body { background: #f7f7f5; color: #111; -webkit-font-smoothing: antialiased; fo
   .rx-app *, .rx-app *::before, .rx-app *::after { animation: none !important; transition: none !important; }
   .rx-trace-dot { opacity: 1; }
 }
+
+/* ---- Wallet connect (appended; nothing above this line was changed) ------- */
+.rx-walleticon { flex: none; width: 28px; height: 28px; border-radius: 8px; }
+.rx-walletrow {
+  display: flex; align-items: center; gap: 12px; width: 100%; padding: 12px 4px;
+  background: none; border: 0; text-align: left; color: inherit; cursor: pointer;
+  transition: background-color .15s;
+}
+button.rx-walletrow:hover:not([disabled]) { background: rgba(17,17,17,.04); }
+.rx-walletrow[disabled] { opacity: .45; cursor: not-allowed; }
+.rx-walletrow[data-missing="true"] { cursor: default; }

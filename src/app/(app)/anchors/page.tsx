@@ -1,9 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { Download } from "lucide-react";
 import PageHeader from "@/components/ui/PageHeader";
 import Notice from "@/components/ui/Notice";
+import { Ledger, LedgerRow } from "@/components/ui/Ledger";
+import { api } from "@/lib/client-api";
 import { csvCell, formatAmount, sanitizeDecimal } from "@/lib/format";
 
 interface AnchorRow {
@@ -20,6 +22,27 @@ interface AnchorRow {
 
 const ASSETS = ["USDC", "EURC", "XLM"];
 
+interface AssetInfo {
+  enabled: boolean;
+  feeFixed?: number;
+  feePercent?: number;
+  minAmount?: number;
+  maxAmount?: number;
+}
+interface LiveInfo {
+  reachable: boolean;
+  transferServer?: string;
+  deposit?: Record<string, AssetInfo>;
+  withdraw?: Record<string, AssetInfo>;
+  error?: string;
+}
+
+function feeText(i: AssetInfo): string {
+  if (!i.enabled) return "Not available";
+  const parts = [i.feePercent !== undefined && `${i.feePercent}%`, i.feeFixed !== undefined && `${i.feeFixed} fixed`].filter(Boolean);
+  return parts.length ? parts.join(" + ") : "Fee not published";
+}
+
 export default function AnchorsPage() {
   const [anchors, setAnchors] = useState<AnchorRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -27,6 +50,14 @@ export default function AnchorsPage() {
   const [assetCode, setAssetCode] = useState("USDC");
   const [amount, setAmount] = useState("200");
   const [error, setError] = useState<string | null>(null);
+  const [live, setLive] = useState<Record<string, LiveInfo | "loading">>({});
+
+  // Reads the schedule from the anchor's own SEP-24 server, so it can differ from the directory estimate.
+  const checkLive = async (id: string) => {
+    setLive((l) => ({ ...l, [id]: "loading" }));
+    const res = await api<LiveInfo>(`/api/anchors/${id}/info`);
+    setLive((l) => ({ ...l, [id]: res.ok ? res.data : { reachable: false, error: res.error } }));
+  };
 
   const load = useCallback(async () => {
     const value = parseFloat(amount);
@@ -128,54 +159,93 @@ export default function AnchorsPage() {
                   <th scope="col" className="min-w-[160px]">Fee</th>
                   <th scope="col" className="num">On {amount || "0"} {assetCode}</th>
                   <th scope="col" className="hidden md:table-cell">Settles in</th>
+                  <th scope="col" className="num">Live schedule</th>
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
                   [0, 1, 2].map((i) => (
                     <tr key={i}>
-                      <td colSpan={5}><span className="rx-skel" style={{ height: 36 }} /></td>
+                      <td colSpan={6}><span className="rx-skel" style={{ height: 36 }} /></td>
                     </tr>
                   ))
                 ) : visible.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="text-muted">
+                    <td colSpan={6} className="text-muted">
                       {assetCode === "XLM" ? "No anchors in the directory list XLM." : "No anchors match these filters."}
                     </td>
                   </tr>
                 ) : (
-                  visible.map((a) => (
-                    <tr key={a.id}>
-                      <td>
-                        <span className="block font-medium">{a.name}</span>
-                        <span className="rx-small block">{a.domain}</span>
-                      </td>
-                      <td className="hidden sm:table-cell">
-                        <span className="block">{a.corridor}</span>
-                      </td>
-                      <td>
-                        <div className="flex items-center gap-3">
-                          <span className="w-[44px] flex-none font-medium">{a.feePercent}%</span>
-                          <span className="h-[6px] w-[72px] flex-none overflow-hidden rounded-full bg-line" aria-hidden="true">
-                            <span
-                              className="block h-full rounded-full bg-ink"
-                              style={{ width: `${Math.max((a.feePercent / maxFee) * 100, 6)}%`, opacity: a.feePercent === cheapest ? 1 : 0.35 }}
-                            />
-                          </span>
-                        </div>
-                      </td>
-                      <td className="num whitespace-nowrap">
-                        {formatAmount(a.estimatedFee, a.assetCode)} {a.assetCode}
-                      </td>
-                      <td className="hidden whitespace-nowrap md:table-cell">{a.typicalSettlement}</td>
-                    </tr>
-                  ))
+                  visible.map((a) => {
+                    const l = live[a.id];
+                    return (
+                      <Fragment key={a.id}>
+                        <tr>
+                          <td>
+                            <span className="block font-medium">{a.name}</span>
+                            <span className="rx-small block">{a.domain}</span>
+                          </td>
+                          <td className="hidden sm:table-cell">
+                            <span className="block">{a.corridor}</span>
+                          </td>
+                          <td>
+                            <div className="flex items-center gap-3">
+                              <span className="w-[44px] flex-none font-medium">{a.feePercent}%</span>
+                              <span className="h-[6px] w-[72px] flex-none overflow-hidden rounded-full bg-line" aria-hidden="true">
+                                <span
+                                  className="block h-full rounded-full bg-ink"
+                                  style={{ width: `${Math.max((a.feePercent / maxFee) * 100, 6)}%`, opacity: a.feePercent === cheapest ? 1 : 0.35 }}
+                                />
+                              </span>
+                            </div>
+                          </td>
+                          <td className="num whitespace-nowrap">
+                            {formatAmount(a.estimatedFee, a.assetCode)} {a.assetCode}
+                          </td>
+                          <td className="hidden whitespace-nowrap md:table-cell">{a.typicalSettlement}</td>
+                          <td className="num">
+                            <button type="button" className="rx-btn rx-btn-secondary rx-btn-sm" disabled={l === "loading"} onClick={() => void checkLive(a.id)}>
+                              {l === "loading" ? "Checking…" : l ? "Check again" : "Check live"}
+                            </button>
+                          </td>
+                        </tr>
+                        {l && l !== "loading" && (
+                          <tr>
+                            <td colSpan={6} className="bg-paper">
+                              {l.reachable ? (
+                                <div className="grid gap-x-12 gap-y-4 py-1 sm:grid-cols-2">
+                                  {(["deposit", "withdraw"] as const).map((kind) => (
+                                    <div key={kind}>
+                                      <h3 className="rx-h2">{kind === "deposit" ? "Deposit (cash in)" : "Withdraw (cash out)"}</h3>
+                                      {l[kind] && Object.keys(l[kind] ?? {}).length > 0 ? (
+                                        <Ledger>
+                                          {Object.entries(l[kind] ?? {}).map(([code, info]) => (
+                                            <LedgerRow key={code} label={code}>{feeText(info)}</LedgerRow>
+                                          ))}
+                                        </Ledger>
+                                      ) : (
+                                        <p className="rx-small mt-1">Not listed</p>
+                                      )}
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : (
+                                <p className="rx-small py-1">
+                                  Couldn&apos;t read this anchor{l.error ? `: ${l.error}` : "."} The estimate above is still RemitX&apos;s own figure.
+                                </p>
+                              )}
+                            </td>
+                          </tr>
+                        )}
+                      </Fragment>
+                    );
+                  })
                 )}
               </tbody>
             </table>
           </div>
           <p className="rx-tablefoot">
-            {visible.length} anchor{visible.length === 1 ? "" : "s"}. Fees come from each anchor&apos;s published schedule and are checked by hand before listing.
+            {visible.length} anchor{visible.length === 1 ? "" : "s"}. Fees come from each anchor&apos;s published schedule and are checked by hand before listing. Check live reads the schedule from the anchor&apos;s own SEP-24 server.
           </p>
         </div>
       </section>

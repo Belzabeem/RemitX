@@ -5,7 +5,6 @@ import type {
   TransactionRepository,
   RateRepository,
   EscrowRepository,
-  MetaRepository,
   DataRepositories,
 } from "../repositories";
 import {
@@ -307,11 +306,10 @@ export class MemoryEscrowRepository implements EscrowRepository {
   }
 }
 
-export class MemoryMetaRepository implements MetaRepository {
+class MemoryMetaRepository {
   async get(key: string): Promise<string | null> {
     return metaMap.get(key) ?? null;
   }
-
   async set(key: string, value: string): Promise<void> {
     metaMap.set(key, value);
   }
@@ -319,11 +317,11 @@ export class MemoryMetaRepository implements MetaRepository {
 
 export function createMemoryRepositories(): DataRepositories {
   return {
+    meta: new MemoryMetaRepository(),
     users: new MemoryUserRepository(),
     transactions: new MemoryTransactionRepository(),
     rates: new MemoryRateRepository(),
     escrows: new MemoryEscrowRepository(),
-    meta: new MemoryMetaRepository(),
   };
 }
 

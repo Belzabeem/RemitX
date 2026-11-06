@@ -13,6 +13,8 @@ import {
   LogOut,
   MoreHorizontal,
   Send,
+  ShieldCheck,
+  Wallet,
   X,
   type LucideIcon,
 } from "lucide-react";
@@ -20,6 +22,7 @@ import BrandMark from "@/components/BrandMark";
 import CopyButton from "@/components/ui/CopyButton";
 import { NETWORK_LABEL } from "@/lib/network-label";
 import { truncateMiddle } from "@/lib/format";
+import { useWallet } from "@/lib/wallet-context";
 import { UserContext, type CurrentUser } from "./user-context";
 
 interface NavItem {
@@ -33,6 +36,7 @@ const TRANSFERS: NavItem[] = [
   { href: "/send", label: "Send money", icon: Send },
   { href: "/activity", label: "Activity", icon: Activity },
 ];
+const VERIFY: NavItem = { href: "/verify", label: "Verify", icon: ShieldCheck };
 const COMPARE: NavItem[] = [
   { href: "/routes", label: "Routes", icon: ArrowLeftRight },
   { href: "/anchors", label: "Anchors", icon: Landmark },
@@ -40,11 +44,14 @@ const COMPARE: NavItem[] = [
 ];
 const SUPPORT: NavItem = { href: "/support", label: "Support", icon: LifeBuoy };
 
+const isPlaceholderEmail = (email: string) => email.endsWith("@wallet.remitx.invalid");
+
 export default function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const [user, setUser] = useState<CurrentUser | null>(null);
   const [moreOpen, setMoreOpen] = useState(false);
+  const { address, openModal, disconnect } = useWallet();
 
   const refresh = useCallback(async () => {
     try {
@@ -61,13 +68,14 @@ export default function AppShell({ children }: { children: ReactNode }) {
     // Defer one tick so the fetch result is the only thing that sets state.
     const id = setTimeout(() => void refresh(), 0);
     return () => clearTimeout(id);
-  }, [refresh]);
+  }, [refresh, address]);
 
   const isActive = (href: string) => (href === "/dashboard" ? pathname === href : pathname.startsWith(href));
 
   const signOut = async () => {
     try {
-      await fetch("/api/auth/logout", { method: "POST" });
+      if (address) await disconnect();
+      else await fetch("/api/auth/logout", { method: "POST" });
     } finally {
       router.push("/login");
       router.refresh();
@@ -107,6 +115,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
             <div className="rx-navgroup">
               <p className="rx-navlabel">Transfers</p>
               {TRANSFERS.map((i) => link(i))}
+              {link(VERIFY)}
             </div>
             <div className="rx-navgroup">
               <p className="rx-navlabel">Compare</p>
@@ -128,6 +137,11 @@ export default function AppShell({ children }: { children: ReactNode }) {
                     </span>
                     <CopyButton value={user.stellarPublicKey} label="Copy your Stellar address" />
                   </div>
+                )}
+                {!user.stellarPublicKey && (
+                  <button type="button" className="rx-btn rx-btn-secondary rx-btn-sm mt-2" onClick={openModal}>
+                    <Wallet size={15} aria-hidden="true" /> Connect wallet
+                  </button>
                 )}
               </>
             ) : (
@@ -180,7 +194,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
                       <p className="text-[16px] font-medium">
                         {user.firstName} {user.lastName}
                       </p>
-                      <p className="rx-small">{user.email}</p>
+                      <p className="rx-small">{isPlaceholderEmail(user.email) ? "Signed in with a wallet" : user.email}</p>
                     </>
                   )}
                 </div>
@@ -189,12 +203,26 @@ export default function AppShell({ children }: { children: ReactNode }) {
                 </button>
               </div>
               <div className="-mx-2.5 mt-4">
-                {[COMPARE[2], COMPARE[1], SUPPORT].map((i) => link(i, () => setMoreOpen(false)))}
+                {[COMPARE[2], COMPARE[1], VERIFY, SUPPORT].map((i) => link(i, () => setMoreOpen(false)))}
                 <button type="button" className="rx-navlink w-full text-left" onClick={signOut}>
                   <LogOut size={17} aria-hidden="true" />
                   Sign out
                 </button>
               </div>
+              {user && !user.stellarPublicKey && (
+                <div className="mt-4 border-t border-line pt-4">
+                  <button
+                    type="button"
+                    className="rx-btn rx-btn-secondary rx-btn-block"
+                    onClick={() => {
+                      setMoreOpen(false);
+                      openModal();
+                    }}
+                  >
+                    <Wallet size={16} aria-hidden="true" /> Connect wallet
+                  </button>
+                </div>
+              )}
               {user?.stellarPublicKey && (
                 <div className="mt-4 border-t border-line pt-4">
                   <p className="rx-small">Your Stellar address</p>

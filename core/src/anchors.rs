@@ -96,20 +96,19 @@ pub fn list_anchors(filters: AnchorFilters) -> Vec<Anchor> {
     let mut result: Vec<Anchor> = ANCHORS
         .iter()
         .filter(|a| {
-        if let Some(corridor) = filters.corridor.as_deref() {
-            if corridor != "All"
-                && !a.country.to_lowercase().contains(&corridor.to_lowercase())
-            {
-                return false;
+            if let Some(corridor) = filters.corridor.as_deref() {
+                if corridor != "All" && !a.country.to_lowercase().contains(&corridor.to_lowercase())
+                {
+                    return false;
+                }
             }
-        }
-        if let Some(asset_code) = filters.asset_code.as_deref() {
-            if a.asset_code != asset_code {
-                return false;
+            if let Some(asset_code) = filters.asset_code.as_deref() {
+                if a.asset_code != asset_code {
+                    return false;
+                }
             }
-        }
-        true
-    })
+            true
+        })
         .cloned()
         .collect();
     result.sort_by(|a, b| a.fee_percent.partial_cmp(&b.fee_percent).unwrap());

@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { WalletProvider } from "@/lib/wallet-context";
+import ConnectDialog from "@/components/wallet/ConnectDialog";
 import CookieBanner from "@/components/CookieBanner";
 import Analytics from "@/components/Analytics";
 
@@ -77,7 +79,10 @@ export default function RootLayout({
         />
       </head>
       <body className="font-body-md text-on-background bg-background min-h-screen antialiased">
-        {children}
+        <WalletProvider>
+          {children}
+          <ConnectDialog />
+        </WalletProvider>
         <CookieBanner />
         <Analytics />
       </body>

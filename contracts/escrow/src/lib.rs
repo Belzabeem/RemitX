@@ -11,20 +11,6 @@
 //! - Escrow cancellation before expiry by sender
 //! - Escrow expiry extension by platform
 //! - Comprehensive getter set for off-chain indexers
-//!
-//! Security audit checklist (before mainnet — create contracts#security-audit):
-//! - [ ] Reentrancy: all state changes before external token transfers
-//! - [ ] Authz: require_auth() on every state-changing function
-//! - [ ] Integer overflow: checked arithmetic on amounts and fees
-//! - [ ] Storage exhaustion: bounds on escrow count, release count
-//! - [ ] Event spoofing: events emitted only after state mutation
-//! - [ ] Upgradeability: add upgradeable contract admin when needed
-//!
-//! Issue candidates:
-//!   - contracts#sac-issuance — Wrap Stellar assets in SACs for Soroban use
-//!   - contracts#local-quickstart — Local Quickstart for contract testing
-//!   - contracts#upgradeability — Upgradeable escrow / exchange contracts
-//!   - contracts#rate-limiting — Per-address deposit rate limiting
 
 #![no_std]
 
@@ -53,6 +39,7 @@ pub enum EscrowError {
     CannotCancelLocked = 10,
     InvalidFee = 11,
     InsufficientBalance = 12,
+    Paused = 13,
 }
 
 // ---------------------------------------------------------------------------
@@ -100,6 +87,9 @@ pub struct EscrowState {
     pub cancelled_at: Option<u64>,
     pub fee_collected: i128,
     pub release_count: u32,
+    /// Gross amount already paid out of the escrow (released, including fee,
+    /// plus refunded). Remaining balance is `amount - settled`.
+    pub settled: i128,
 }
 
 #[derive(Clone, Debug)]
@@ -135,6 +125,7 @@ impl EscrowContract {
         expires_at: u64,
     ) -> BytesN<32> {
         sender.require_auth();
+        Self::require_not_paused(&env);
         if amount <= 0 {
             panic_with_error!(env, EscrowError::InvalidAmount);
         }
@@ -169,6 +160,7 @@ impl EscrowContract {
             cancelled_at: None,
             fee_collected: 0,
             release_count: 0,
+            settled: 0,
         };
 
         env.storage()
@@ -221,6 +213,7 @@ impl EscrowContract {
     pub fn release(env: Env, escrow_id: BytesN<32>, amount: Option<i128>) -> ReleaseResult {
         let platform = Self::platform(&env);
         platform.require_auth();
+        Self::require_not_paused(&env);
 
         let mut state = Self::load_escrow(&env, &escrow_id);
         if state.status != EscrowStatus::Locked {
@@ -236,8 +229,9 @@ impl EscrowContract {
             .get(&StorageKey::FeeBps)
             .unwrap_or(0);
 
-        let release_amount = amount.unwrap_or(state.amount);
-        if release_amount <= 0 || release_amount > state.amount {
+        let remaining = state.amount - state.settled;
+        let release_amount = amount.unwrap_or(remaining);
+        if release_amount <= 0 || release_amount > remaining {
             panic_with_error!(env, EscrowError::InvalidAmount);
         }
 
@@ -265,8 +259,9 @@ impl EscrowContract {
 
         state.fee_collected += fee;
         state.release_count += 1;
+        state.settled += release_amount;
 
-        if release_amount >= state.amount {
+        if state.settled >= state.amount {
             state.status = EscrowStatus::Released;
             state.released_at = Some(env.ledger().timestamp());
         }
@@ -306,8 +301,9 @@ impl EscrowContract {
             panic_with_error!(env, EscrowError::Expired);
         }
 
-        let refund_amount = amount.unwrap_or(state.amount);
-        if refund_amount <= 0 || refund_amount > state.amount {
+        let remaining = state.amount - state.settled;
+        let refund_amount = amount.unwrap_or(remaining);
+        if refund_amount <= 0 || refund_amount > remaining {
             panic_with_error!(env, EscrowError::InvalidAmount);
         }
 
@@ -317,7 +313,8 @@ impl EscrowContract {
             &refund_amount,
         );
 
-        if refund_amount >= state.amount {
+        state.settled += refund_amount;
+        if state.settled >= state.amount {
             state.status = EscrowStatus::Refunded;
             state.refunded_at = Some(env.ledger().timestamp());
         }
@@ -347,12 +344,14 @@ impl EscrowContract {
             panic_with_error!(env, EscrowError::CannotCancelLocked);
         }
 
+        let refunded = state.amount - state.settled;
         token::Client::new(&env, &state.asset).transfer(
             &env.current_contract_address(),
             &state.sender,
-            &state.amount,
+            &refunded,
         );
 
+        state.settled = state.amount;
         state.status = EscrowStatus::Cancelled;
         state.cancelled_at = Some(env.ledger().timestamp());
 
@@ -362,7 +361,7 @@ impl EscrowContract {
 
         env.events().publish(
             (symbol_short!("escrow"), symbol_short!("cancel"), escrow_id),
-            (state.sender, state.amount),
+            (state.sender, refunded),
         );
     }
 
@@ -472,7 +471,9 @@ impl EscrowContract {
             .set(&StorageKey::FeeTreasury, &treasury);
     }
 
-    /// Pause or unpause the contract. Platform-only.
+    /// Pause or unpause the contract. Platform-only. While paused, `deposit`
+    /// and `release` are rejected; `refund`, `cancel` and reads still work so
+    /// senders can always recover their funds.
     pub fn set_paused(env: Env, paused: bool) {
         let platform = Self::platform(&env);
         platform.require_auth();
@@ -486,6 +487,12 @@ impl EscrowContract {
             .instance()
             .get(&StorageKey::Platform)
             .expect("escrow: not initialized")
+    }
+
+    fn require_not_paused(env: &Env) {
+        if Self::is_paused(env.clone()) {
+            panic_with_error!(env, EscrowError::Paused);
+        }
     }
 
     fn load_escrow(env: &Env, escrow_id: &BytesN<32>) -> EscrowState {
@@ -513,11 +520,6 @@ impl EscrowContract {
         buf.append(&Bytes::from_array(env, &nonce.to_be_bytes()));
         env.crypto().sha256(&buf).to_bytes()
     }
-
-    // TODO: contracts#upgradeability — Add upgradeable contract admin so the
-    // escrow logic can be patched without migrating user funds.
-    // TODO: contracts#rate-limiting — Add per-address deposit rate limiting
-    // to prevent spam on public testnet / mainnet.
 
     /// Contract constructor: records the platform release authority, fee
     /// treasury, and default fee (0 bps).
