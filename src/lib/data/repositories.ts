@@ -64,10 +64,16 @@ export interface EscrowRepository {
   list(): Promise<Escrow[]>;
 }
 
+export interface MetaRepository {
+  get(key: string): Promise<string | null>;
+  set(key: string, value: string): Promise<void>;
+}
+
 export interface DataRepositories {
   users: UserRepository;
   transactions: TransactionRepository;
   rates: RateRepository;
   escrows: EscrowRepository;
+  meta: MetaRepository;
 }
 

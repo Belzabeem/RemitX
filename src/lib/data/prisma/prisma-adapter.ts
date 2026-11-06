@@ -46,6 +46,10 @@ export function createPrismaRepositories(): DataRepositories {
       update: () => notEnabled("escrows.update"),
       list: () => notEnabled("escrows.list"),
     },
+    meta: {
+      get: () => notEnabled("meta.get"),
+      set: () => notEnabled("meta.set"),
+    },
   };
 }
 
