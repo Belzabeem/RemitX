@@ -260,16 +260,18 @@ export default function LoginPage() {
           </div>
         </main>
 
-        <aside className="rx-authside" aria-hidden="true">
-          <div>
-            <p className="max-w-[22ch] text-balance text-[30px] font-medium leading-[1.14] tracking-[-0.035em]">
+        <aside className="rx-authside">
+          <div className="w-full max-w-[420px] mx-auto lg:mx-0">
+            <p className="max-w-[22ch] text-balance text-[26px] sm:text-[30px] font-medium leading-[1.14] tracking-[-0.035em]">
               Know what it costs before you send it.
             </p>
           </div>
 
-          <GlobeNetwork />
+          <div className="w-full flex justify-center lg:justify-start">
+            <GlobeNetwork />
+          </div>
 
-          <div className="max-w-[420px]">
+          <div className="w-full max-w-[420px] mx-auto lg:mx-0">
             <RouteTrace nodes={["You", "Stellar", "Home"]} animateKey="auth" />
             <ul className="mt-6 space-y-3 text-[14px] leading-[20px] text-ink-2">
               <li>Rate, fees and arrival time are shown before you confirm.</li>

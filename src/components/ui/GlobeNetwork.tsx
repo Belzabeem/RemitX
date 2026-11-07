@@ -509,9 +509,9 @@ export default function GlobeNetwork() {
   const active = CORRIDORS[activeCorridor];
 
   return (
-    <div className="relative my-2 w-full max-w-[420px] select-none rounded-2xl border border-black/[0.07] bg-white/60 p-4 shadow-xs backdrop-blur-xs">
+    <div className="relative my-2 w-full max-w-[420px] select-none rounded-2xl border border-black/[0.07] bg-white/60 p-3.5 sm:p-4 shadow-xs backdrop-blur-xs">
       {/* Top HUD */}
-      <div className="flex items-center justify-between border-b border-black/[0.06] pb-3 text-[12.5px]">
+      <div className="flex items-center justify-between border-b border-black/[0.06] pb-3 text-[12px] sm:text-[12.5px]">
         <div className="flex items-center gap-2">
           <span className="relative flex h-2 w-2">
             <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-positive opacity-75" />
@@ -519,13 +519,13 @@ export default function GlobeNetwork() {
           </span>
           <span className="font-medium tracking-tight text-ink">Stellar Liquidity Mesh</span>
         </div>
-        <div className="text-[12px] font-medium text-muted">
+        <div className="text-[11.5px] sm:text-[12px] font-medium text-muted">
           Avg. settlement <span className="font-semibold text-ink">{active.speed}</span>
         </div>
       </div>
 
       {/* 3D Canvas with drag handle hint */}
-      <div className="relative h-[250px] w-full cursor-grab active:cursor-grabbing sm:h-[270px]">
+      <div className="relative h-[230px] w-full cursor-grab active:cursor-grabbing sm:h-[270px]">
         <canvas
           ref={canvasRef}
           onPointerDown={handlePointerDown}
@@ -536,27 +536,27 @@ export default function GlobeNetwork() {
           role="img"
           aria-label="Interactive 3D dot-matrix globe showing active cross-border payment corridors on Stellar"
         />
-        <div className="pointer-events-none absolute bottom-1 right-2 rounded-full bg-white/70 px-2 py-0.5 text-[10.5px] font-medium text-muted backdrop-blur-xs">
+        <div className="pointer-events-none absolute bottom-1 right-2 rounded-full bg-white/70 px-2 py-0.5 text-[10px] sm:text-[10.5px] font-medium text-muted backdrop-blur-xs">
           Drag to explore
         </div>
       </div>
 
       {/* Active Corridor Live Summary */}
       <div className="mt-1 rounded-xl bg-[#eeede9]/60 px-3.5 py-2.5">
-        <div className="flex items-baseline justify-between text-[13px]">
+        <div className="flex items-baseline justify-between text-[12.5px] sm:text-[13px]">
           <span className="font-medium text-ink">
             {active.from.name} → {active.to.name}
           </span>
           <span className="font-semibold text-ink">{active.rate}</span>
         </div>
-        <div className="mt-1 flex items-center justify-between text-[11.5px] text-muted">
+        <div className="mt-1 flex items-center justify-between text-[11px] sm:text-[11.5px] text-muted">
           <span>Direct DEX Path Payment</span>
           <span className="font-medium text-positive">Zero bank markup</span>
         </div>
       </div>
 
       {/* Quick Corridor Selection Pills */}
-      <div className="mt-3 flex items-center gap-1.5 overflow-x-auto pb-0.5">
+      <div className="mt-3 flex items-center gap-1.5 overflow-x-auto pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {CORRIDORS.map((c, idx) => {
           const isSelected = idx === activeCorridor;
           return (

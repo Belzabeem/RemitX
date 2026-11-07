@@ -295,7 +295,7 @@ export default function RatesPage() {
         {/* Detail */}
         <section aria-label={`${active} detail`}>
           <p className="rx-small">{active}</p>
-          <p className="rx-figure mt-1 text-[40px] md:text-[48px]">
+          <p className="rx-figure mt-1 text-[30px] sm:text-[38px] md:text-[48px]">
             {current ? formatRate(current.rate) : <span className="rx-skel inline-block" style={{ width: 180, height: 44 }} />}
           </p>
           <p className="rx-small mt-2">
@@ -367,7 +367,7 @@ export default function RatesPage() {
               <option value="below">Falls below</option>
             </select>
           </div>
-          <div className="w-[calc(50%-6px)] sm:w-[160px]">
+          <div className="w-full sm:w-[160px]">
             <label className="rx-label" htmlFor="watch-threshold">Level</label>
             <input
               id="watch-threshold"
@@ -378,7 +378,7 @@ export default function RatesPage() {
               onChange={(e) => setWThreshold(sanitizeDecimal(e.target.value, 6))}
             />
           </div>
-          <button type="submit" className="rx-btn rx-btn-primary" disabled={!parseFloat(wThreshold)}>
+          <button type="submit" className="rx-btn rx-btn-primary w-full sm:w-auto" disabled={!parseFloat(wThreshold)}>
             Add watch
           </button>
         </form>

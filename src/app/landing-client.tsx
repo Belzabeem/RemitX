@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { ShieldCheck, Shield, Landmark, Gauge, PiggyBank } from "lucide-react";
+import { ShieldCheck, Shield, Landmark, Gauge, PiggyBank, Menu, X } from "lucide-react";
 import DotHands from "@/components/DotHands";
 import BrandMark from "@/components/BrandMark";
 
@@ -18,6 +18,7 @@ const LIVE_RATE_POLL_MS = 15_000;
 export default function LandingClient() {
   const [cardRates, setCardRates] = useState<Record<string, number>>({});
   const [ratesLoading, setRatesLoading] = useState(true);
+  const [menuOpen, setMenuOpen] = useState(false);
 
   // Real, always-live currency rates - no static/example numbers.
   useEffect(() => {
@@ -70,8 +71,64 @@ export default function LandingClient() {
           <a href="#corridors" className="lnk">Corridors</a>
           <a href="#infrastructure" className="lnk">Security</a>
           <Link href="/legal/privacy" className="lnk">Legal</Link>
-          <Link href="/login" className="signin">Sign In</Link>
+          <div className="flex items-center gap-2">
+            <Link href="/login" className="signin">Sign In</Link>
+            <button
+              type="button"
+              onClick={() => setMenuOpen(!menuOpen)}
+              className="inline-flex md:hidden items-center justify-center w-9 h-9 rounded-full bg-white/80 border border-black/10 text-primary hover:bg-white transition-colors"
+              aria-label={menuOpen ? "Close menu" : "Open navigation menu"}
+              aria-expanded={menuOpen}
+            >
+              {menuOpen ? <X size={17} /> : <Menu size={17} />}
+            </button>
+          </div>
         </nav>
+
+        {/* Mobile Dropdown Menu */}
+        {menuOpen && (
+          <div className="absolute top-[72px] inset-x-4 z-40 md:hidden bg-white/95 backdrop-blur-md border border-black/10 rounded-2xl p-4 shadow-lg animate-slide-blur">
+            <nav className="flex flex-col gap-1 text-[15px] font-medium text-ink">
+              <Link
+                href="/login"
+                onClick={() => setMenuOpen(false)}
+                className="px-3 py-2.5 rounded-lg hover:bg-black/5 transition-colors"
+              >
+                Personal
+              </Link>
+              <a
+                href="#corridors"
+                onClick={() => setMenuOpen(false)}
+                className="px-3 py-2.5 rounded-lg hover:bg-black/5 transition-colors"
+              >
+                Corridors
+              </a>
+              <a
+                href="#infrastructure"
+                onClick={() => setMenuOpen(false)}
+                className="px-3 py-2.5 rounded-lg hover:bg-black/5 transition-colors"
+              >
+                Security &amp; Infrastructure
+              </a>
+              <Link
+                href="/legal/privacy"
+                onClick={() => setMenuOpen(false)}
+                className="px-3 py-2.5 rounded-lg hover:bg-black/5 transition-colors"
+              >
+                Legal &amp; Privacy
+              </Link>
+              <div className="pt-2 mt-1 border-t border-black/5">
+                <Link
+                  href="/login"
+                  onClick={() => setMenuOpen(false)}
+                  className="block text-center py-2.5 rounded-full bg-ink text-white font-medium"
+                >
+                  Sign In / Create Account
+                </Link>
+              </div>
+            </nav>
+          </div>
+        )}
 
         <div className="hero-copy">
           <h1>
@@ -113,10 +170,10 @@ export default function LandingClient() {
             </div>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 lg:gap-4">
               {LIVE_CURRENCIES.map((currency) => (
-                <div key={currency.code} className="bg-white border border-black/5 p-6 rounded-2xl text-center transition-transform hover:-translate-y-0.5">
-                  <p className="text-lg font-medium tracking-tight text-primary">{currency.code}</p>
-                  <p className="text-xs text-[#7b7b7b]">{currency.name}</p>
-                  <p className="text-xs font-medium text-[#111] mt-3">
+                <div key={currency.code} className="bg-white border border-black/5 p-4 sm:p-6 rounded-2xl text-center transition-transform hover:-translate-y-0.5">
+                  <p className="text-base sm:text-lg font-medium tracking-tight text-primary">{currency.code}</p>
+                  <p className="text-[11px] sm:text-xs text-[#7b7b7b]">{currency.name}</p>
+                  <p className="text-[11px] sm:text-xs font-medium text-[#111] mt-2.5 sm:mt-3 break-words sm:break-normal">
                     {currency.code === "USD"
                       ? "Base currency"
                       : cardRates[currency.code]
@@ -130,31 +187,31 @@ export default function LandingClient() {
         </section>
 
         {/* Infrastructure */}
-        <section id="infrastructure" className="pb-20 px-4 lg:px-8" style={{ background: "#f7f7f5" }}>
-          <div className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="md:col-span-2 bg-white border border-black/5 p-8 rounded-2xl relative overflow-hidden">
-              <h3 className="text-xl font-medium tracking-tight text-primary mb-3">Institutional-grade infrastructure</h3>
-              <p className="text-sm text-[#7b7b7b] max-w-md">The same level of security and compliance expected by major financial institutions.</p>
-              <div className="mt-6 flex flex-wrap gap-5 text-xs font-medium text-[#3a3a3a]">
+        <section id="infrastructure" className="pb-16 sm:pb-20 px-4 lg:px-8" style={{ background: "#f7f7f5" }}>
+          <div className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-3.5 sm:gap-4">
+            <div className="md:col-span-2 bg-white border border-black/5 p-6 sm:p-8 rounded-2xl relative overflow-hidden">
+              <h3 className="text-lg sm:text-xl font-medium tracking-tight text-primary mb-2 sm:mb-3">Institutional-grade infrastructure</h3>
+              <p className="text-xs sm:text-sm text-[#7b7b7b] max-w-md">The same level of security and compliance expected by major financial institutions.</p>
+              <div className="mt-5 sm:mt-6 flex flex-wrap gap-4 sm:gap-5 text-xs font-medium text-[#3a3a3a]">
                 <span className="flex items-center gap-1.5"><ShieldCheck size={14} />Encryption</span>
                 <span className="flex items-center gap-1.5"><Landmark size={14} />Regulated anchors</span>
                 <span className="flex items-center gap-1.5"><Shield size={14} />Bank-grade security</span>
               </div>
             </div>
-            <div className="bg-[#111] text-white p-8 rounded-2xl">
+            <div className="bg-[#111] text-white p-6 sm:p-8 rounded-2xl">
               <Gauge size={22} className="mb-3" />
-              <h3 className="text-lg font-medium mb-1">Sub-5 second</h3>
-              <p className="text-sm text-white/70">Transactions finalized in seconds, not days.</p>
+              <h3 className="text-base sm:text-lg font-medium mb-1">Sub-5 second</h3>
+              <p className="text-xs sm:text-sm text-white/70">Transactions finalized in seconds, not days.</p>
             </div>
-            <div className="bg-white border border-black/5 p-8 rounded-2xl md:col-span-3 flex flex-col md:flex-row md:items-center gap-4 justify-between">
-              <div className="flex items-center gap-4">
-                <PiggyBank size={22} className="text-primary" />
+            <div className="bg-white border border-black/5 p-6 sm:p-8 rounded-2xl md:col-span-3 flex flex-col sm:flex-row sm:items-center gap-4 justify-between">
+              <div className="flex items-center gap-3.5 sm:gap-4">
+                <PiggyBank size={24} className="text-primary shrink-0" />
                 <div>
-                  <h3 className="text-lg font-medium text-primary">Zero hidden fees</h3>
-                  <p className="text-sm text-[#7b7b7b]">Exact amounts, total transparency.</p>
+                  <h3 className="text-base sm:text-lg font-medium text-primary">Zero hidden fees</h3>
+                  <p className="text-xs sm:text-sm text-[#7b7b7b]">Exact amounts, total transparency.</p>
                 </div>
               </div>
-              <div className="cta" style={{ marginTop: 0 }}>
+              <div className="cta !mt-2 sm:!mt-0">
                 <Link href="/login">Join RemitX</Link>
               </div>
             </div>

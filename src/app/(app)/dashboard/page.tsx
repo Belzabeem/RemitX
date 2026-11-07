@@ -130,7 +130,7 @@ export default function OverviewPage() {
           ) : (
             <div>
               <p className="rx-small">XLM balance</p>
-              <p className="rx-figure mt-1 text-[44px] md:text-[56px]">
+              <p className="rx-figure mt-1 text-[32px] sm:text-[44px] md:text-[56px] break-words">
                 {formatAmount(xlm?.balance ?? "0", "XLM")}
                 <span className="ml-2 text-[20px] font-normal tracking-normal text-muted">XLM</span>
               </p>
