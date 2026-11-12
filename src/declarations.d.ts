@@ -11,12 +11,23 @@ declare module "@prisma/adapter-pg" {
   }
 }
 
+declare module "@/generated/prisma/client" {
+  export class PrismaClient {
+    constructor(options?: Record<string, unknown>);
+    [key: string]: unknown;
+  }
+}
+
 declare module "@supabase/supabase-js" {
-  export function createClient<T extends Record<string, unknown> = Record<string, unknown>>(
+  export function createClient<_T = unknown>(
     url: string,
     key: string,
     options?: Record<string, unknown>
-  ): SupabaseClient<T>;
+  ): SupabaseClient<_T>;
 
-  export class SupabaseClient<T extends Record<string, unknown> = Record<string, unknown>> {}
+  export class SupabaseClient<_T = unknown> {
+    from(table: string): unknown;
+    auth: unknown;
+    [key: string]: unknown;
+  }
 }

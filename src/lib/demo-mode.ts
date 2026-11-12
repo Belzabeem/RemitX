@@ -101,13 +101,13 @@ const CORRIDORS: Array<{ from: string; to: string; rate: string }> = [
   { from: "PHP", to: "XLM", rate: "0.1429" },
 ];
 
-const FIRST_NAMES = [
+const _FIRST_NAMES = [
   "Amina", "Kwame", "Zara", "Tunde", "Fatima", "Jesse", "Maya", "Raj",
   "Ling", "Sofia", "Diego", "Aisha", "Carlos", "Priya", "Obi", "Nina",
 ];
-const LAST_NAMES = [
+const _LAST_NAMES = [
   "Diallo", "Okonkwo", "Al-Farsi", "Nguyen", "Singh", "Rossi", "Silva",
-  "Kim", "Gomez", "Kowalski", "MÃ¼ller", "Patel", "Yilmaz", "Dubois", "Sanogo",
+  "Kim", "Gomez", "Kowalski", "Müller", "Patel", "Yilmaz", "Dubois", "Sanogo",
 ];
 
 function randomPick<T>(arr: T[]): T {
@@ -207,7 +207,8 @@ export async function generateDemoActivity(): Promise<{
     });
   }
 
-  return { transactions, escrows, rates };
+  DEMO_ACTIVITY_CACHE = { transactions, escrows, rates };
+  return DEMO_ACTIVITY_CACHE;
 }
 
 export async function getDemoTransactions(): Promise<Transaction[]> {
