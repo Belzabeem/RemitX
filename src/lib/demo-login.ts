@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { data } from "@/lib/data";
 import { hashPassword, signToken, setSessionCookie, toSafeUser } from "@/lib/auth";
+import { setDemoCookie } from "@/lib/demo-mode";
 import { successResponse, errorResponse } from "@/lib/api-response";
 import { rateLimit, logSecurityEvent } from "@/lib/security";
 
@@ -41,7 +42,10 @@ export async function performDemoLogin(request: NextRequest): Promise<Response> 
     const token = signToken(safeUser, user.sessionVersion || 1);
     await setSessionCookie(token);
 
-    return successResponse({ user: safeUser });
+    // Mark the request as demo so the UI can switch to demo mode and the
+    // API can serve demo data for the rest of the session.
+    const response = successResponse({ user: safeUser });
+    return setDemoCookie(response);
   } catch (err) {
     console.error("Demo login error:", err);
     return errorResponse("Internal server error", 500);

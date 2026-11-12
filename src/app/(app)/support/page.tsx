@@ -47,14 +47,10 @@ export default function SupportPage() {
         </section>
 
         <section className="rx-section">
-          <h2 className="rx-h2">Registered office</h2>
-          <address className="mt-2 text-[14.5px] not-italic leading-[22px] text-muted">
-            RemitX Technologies Ltd.
-            <br />
-            14B Admiralty Way, Lekki Phase 1
-            <br />
-            Lagos 105102, Nigeria
-          </address>
+          <h2 className="rx-h2">How sending works</h2>
+          <p className="mt-2 max-w-[56ch] text-[14.5px] leading-[22px] text-muted">
+            Connect a Stellar wallet. Send builds a Stellar path payment, Review asks your wallet to sign it before it&apos;s submitted, and Activity follows it until it&apos;s confirmed.
+          </p>
         </section>
       </div>
     </div>

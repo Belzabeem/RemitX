@@ -255,7 +255,8 @@ export default function SendMoneyPage() {
             <div className="rx-field-icon">
               <input
                 id="recipient-address"
-                className="rx-input rx-mono text-[16px] sm:text-[13.5px]"
+                className="rx-input rx-mono"
+                style={{ fontSize: 13.5 }}
                 placeholder="G…"
                 autoComplete="off"
                 autoCapitalize="characters"

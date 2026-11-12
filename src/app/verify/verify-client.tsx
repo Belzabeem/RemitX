@@ -69,7 +69,8 @@ function Inner() {
         <div className="flex flex-col gap-3 sm:flex-row">
           <input
             id="verify-hash"
-            className="rx-input rx-mono flex-1 text-[16px] sm:text-[13.5px]"
+            className="rx-input rx-mono flex-1"
+            style={{ fontSize: 13.5 }}
             value={hash}
             onChange={(e) => setHash(e.target.value)}
             placeholder="64 hexadecimal characters"

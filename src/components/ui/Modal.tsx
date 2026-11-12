@@ -59,7 +59,6 @@ export default function Modal({
   return (
     <div className="rx-overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose?.()}>
       <div ref={panel} className="rx-dialog" role="dialog" aria-modal="true" aria-labelledby={titleId}>
-        <div className="rx-dialog-handle sm:hidden" aria-hidden="true" />
         <h2 id={titleId} className="text-[20px] font-medium tracking-[-0.02em]">
           {title}
         </h2>
