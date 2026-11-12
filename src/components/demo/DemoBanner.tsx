@@ -1,10 +1,7 @@
-"use client"
-"use client"
 "use client";
+
 import Link from "next/link";
 import { useDemoMode } from "@/lib/demo-client";
-
-"use client";
 
 export function DemoBanner() {
   const { isDemo } = useDemoMode();
@@ -35,8 +32,7 @@ export function DemoBanner() {
         </div>
       </div>
       <p className="rx-small mt-3 text-muted">
-        Demo login: alice@remitx.dev / Password123!
-        {" "}
+        Demo login: alice@remitx.dev / Password123!{" "}
         <Link href="/login" className="rx-link">
           switch to real sign-up
         </Link>
