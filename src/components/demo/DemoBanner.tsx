@@ -1,5 +1,10 @@
+"use client"
+"use client"
+"use client";
 import Link from "next/link";
 import { useDemoMode } from "@/lib/demo-client";
+
+"use client";
 
 export function DemoBanner() {
   const { isDemo } = useDemoMode();
