@@ -38,6 +38,7 @@ build.log
 # OS
 .DS_Store
 Thumbs.db
+con
 
 # Logs
 *.log

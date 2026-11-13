@@ -115,7 +115,7 @@ function ReviewInner() {
       <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-12 lg:grid-cols-[minmax(0,1fr)_380px] lg:gap-16">
         <section aria-label="Transfer summary">
           <p className="rx-small">They receive</p>
-          <p className="rx-figure mt-1 text-[30px] sm:text-[40px] md:text-[52px] break-words">
+          <p className="rx-figure mt-1 text-[40px] md:text-[52px]">
             {formatAmount(tx.toAmount, tx.toAsset)}
             <span className="ml-2 text-[20px] font-normal tracking-normal text-muted">{tx.toAsset}</span>
           </p>

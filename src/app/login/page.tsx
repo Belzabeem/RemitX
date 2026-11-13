@@ -11,6 +11,7 @@ import GlobeNetwork from "@/components/ui/GlobeNetwork";
 import TurnstileWidget from "@/components/TurnstileWidget";
 import { getPasswordStrength, MIN_PASSWORD_SCORE } from "@/lib/password-strength";
 import { useWallet } from "@/lib/wallet-context";
+import { useDemoMode } from "@/lib/demo-client";
 
 function PasswordField({
   id,
@@ -70,6 +71,7 @@ export default function LoginPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [demoLoading, setDemoLoading] = useState(false);
+  const { isDemo } = useDemoMode();
 
   const strength = getPasswordStrength(password);
   const passwordsMatch = password === confirmPassword;
@@ -247,9 +249,11 @@ export default function LoginPage() {
             </button>
 
             <button type="button" className="rx-btn rx-btn-secondary rx-btn-block" onClick={handleDemoLogin} disabled={demoLoading || loading}>
-              {demoLoading ? "Opening demo…" : "Try the demo account"}
+              {demoLoading ? "Opening demo..." : "Try the demo account"}
             </button>
-            <p className="rx-small mt-3 text-center">Demo login: alice@remitx.dev with Password123!</p>
+            <p className="rx-small mt-3 text-center">
+              {isDemo ? "Demo mode active — millions of users flowing." : "Demo login: alice@remitx.dev with Password123!"}
+            </p>
 
             <p className="mt-8 text-center text-[14.5px] text-muted">
               {isRegister ? "Already have an account?" : "New to RemitX?"}{" "}
@@ -260,18 +264,16 @@ export default function LoginPage() {
           </div>
         </main>
 
-        <aside className="rx-authside">
-          <div className="w-full max-w-[420px] mx-auto lg:mx-0">
-            <p className="max-w-[22ch] text-balance text-[26px] sm:text-[30px] font-medium leading-[1.14] tracking-[-0.035em]">
+        <aside className="rx-authside" aria-hidden="true">
+          <div>
+            <p className="max-w-[22ch] text-balance text-[30px] font-medium leading-[1.14] tracking-[-0.035em]">
               Know what it costs before you send it.
             </p>
           </div>
 
-          <div className="w-full flex justify-center lg:justify-start">
-            <GlobeNetwork />
-          </div>
+          <GlobeNetwork />
 
-          <div className="w-full max-w-[420px] mx-auto lg:mx-0">
+          <div className="max-w-[420px]">
             <RouteTrace nodes={["You", "Stellar", "Home"]} animateKey="auth" />
             <ul className="mt-6 space-y-3 text-[14px] leading-[20px] text-ink-2">
               <li>Rate, fees and arrival time are shown before you confirm.</li>

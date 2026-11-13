@@ -109,26 +109,24 @@ export default function RoutesPage() {
             onChange={(e) => setAmount(sanitizeDecimal(e.target.value))}
           />
         </div>
-        <div className="flex w-full items-end gap-2 sm:w-auto">
-          <div className="flex-1 sm:w-[130px] sm:flex-none">
-            <label className="rx-label" htmlFor="routes-from">From</label>
-            <select id="routes-from" className="rx-select" value={fromAsset} onChange={(e) => setFromAsset(e.target.value)}>
-              {ASSETS.map((a) => (
-                <option key={a} value={a}>{a}</option>
-              ))}
-            </select>
-          </div>
-          <button type="button" className="rx-iconbtn mb-[5px] shrink-0" onClick={swap} aria-label="Swap assets" title="Swap assets">
-            <ArrowLeftRight size={16} />
-          </button>
-          <div className="flex-1 sm:w-[130px] sm:flex-none">
-            <label className="rx-label" htmlFor="routes-to">To</label>
-            <select id="routes-to" className="rx-select" value={toAsset} onChange={(e) => setToAsset(e.target.value)}>
-              {ASSETS.map((a) => (
-                <option key={a} value={a}>{a}</option>
-              ))}
-            </select>
-          </div>
+        <div className="w-[calc(50%-24px)] sm:w-[130px]">
+          <label className="rx-label" htmlFor="routes-from">From</label>
+          <select id="routes-from" className="rx-select" value={fromAsset} onChange={(e) => setFromAsset(e.target.value)}>
+            {ASSETS.map((a) => (
+              <option key={a} value={a}>{a}</option>
+            ))}
+          </select>
+        </div>
+        <button type="button" className="rx-iconbtn mb-[5px]" onClick={swap} aria-label="Swap assets" title="Swap assets">
+          <ArrowLeftRight size={16} />
+        </button>
+        <div className="w-[calc(50%-24px)] sm:w-[130px]">
+          <label className="rx-label" htmlFor="routes-to">To</label>
+          <select id="routes-to" className="rx-select" value={toAsset} onChange={(e) => setToAsset(e.target.value)}>
+            {ASSETS.map((a) => (
+              <option key={a} value={a}>{a}</option>
+            ))}
+          </select>
         </div>
       </div>
 

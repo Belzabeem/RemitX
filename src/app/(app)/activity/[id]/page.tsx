@@ -56,61 +56,28 @@ function Timeline({ tx }: { tx: TransactionDetail }) {
     { label: failed ? "Failed" : "Confirmed", at: tx.confirmedAt },
   ];
   return (
-    <>
-      {/* Mobile vertical stepped timeline */}
-      <ol className="sm:hidden space-y-3" aria-label="Transfer progress">
-        {steps.map((s, i) => {
-          const reached = i <= stage;
-          const bad = failed && i === 2;
-          const isLast = i === steps.length - 1;
-          return (
-            <li key={s.label} className="flex gap-3">
-              <div className="flex flex-col items-center">
-                <span
-                  className="h-[10px] w-[10px] flex-none rounded-full border-[1.5px] mt-1"
-                  style={{
-                    borderColor: bad ? "var(--color-danger)" : reached ? "var(--color-ink)" : "var(--color-line-strong)",
-                    background: reached ? (bad ? "var(--color-danger)" : "var(--color-ink)") : "transparent",
-                  }}
-                  aria-hidden="true"
-                />
-                {!isLast && <span className="w-0 flex-1 my-1 border-l-2 border-dotted border-line-strong min-h-[22px]" aria-hidden="true" />}
-              </div>
-              <div className="pb-1.5">
-                <p className={`text-[14px] ${reached ? "font-medium" : "text-muted"}`}>{s.label}</p>
-                {i !== 1 && s.at && reached && (
-                  <p className="rx-small mt-0.5">{formatDateTime(s.at)}</p>
-                )}
-              </div>
-            </li>
-          );
-        })}
-      </ol>
-
-      {/* Desktop horizontal timeline */}
-      <ol className="hidden sm:grid sm:grid-cols-3 sm:gap-2" aria-label="Transfer progress">
-        {steps.map((s, i) => {
-          const reached = i <= stage;
-          const bad = failed && i === 2;
-          return (
-            <li key={s.label} className="min-w-0">
-              <div className="flex items-center gap-2" aria-hidden="true">
-                <span
-                  className="h-[9px] w-[9px] flex-none rounded-full border-[1.5px]"
-                  style={{
-                    borderColor: bad ? "var(--color-danger)" : reached ? "var(--color-ink)" : "var(--color-line-strong)",
-                    background: reached ? (bad ? "var(--color-danger)" : "var(--color-ink)") : "transparent",
-                  }}
-                />
-                {i < steps.length - 1 && <span className="flex-1 border-t-2 border-dotted border-line-strong" />}
-              </div>
-              <p className={`mt-2 text-[14px] ${reached ? "font-medium" : "text-muted"}`}>{s.label}</p>
-              <p className="rx-small">{i === 1 ? "" : s.at && reached ? formatDateTime(s.at) : ""}</p>
-            </li>
-          );
-        })}
-      </ol>
-    </>
+    <ol className="grid grid-cols-3 gap-2" aria-label="Transfer progress">
+      {steps.map((s, i) => {
+        const reached = i <= stage;
+        const bad = failed && i === 2;
+        return (
+          <li key={s.label} className="min-w-0">
+            <div className="flex items-center gap-2" aria-hidden="true">
+              <span
+                className="h-[9px] w-[9px] flex-none rounded-full border-[1.5px]"
+                style={{
+                  borderColor: bad ? "var(--color-danger)" : reached ? "var(--color-ink)" : "var(--color-line-strong)",
+                  background: reached ? (bad ? "var(--color-danger)" : "var(--color-ink)") : "transparent",
+                }}
+              />
+              {i < steps.length - 1 && <span className="flex-1 border-t-2 border-dotted border-line-strong" />}
+            </div>
+            <p className={`mt-2 text-[14px] ${reached ? "font-medium" : "text-muted"}`}>{s.label}</p>
+            <p className="rx-small">{i === 1 ? "" : s.at && reached ? formatDateTime(s.at) : ""}</p>
+          </li>
+        );
+      })}
+    </ol>
   );
 }
 

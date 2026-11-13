@@ -187,7 +187,6 @@ export default function AppShell({ children }: { children: ReactNode }) {
         {moreOpen && (
           <div className="rx-overlay" onMouseDown={(e) => e.target === e.currentTarget && setMoreOpen(false)}>
             <div className="rx-dialog" role="dialog" aria-modal="true" aria-label="More">
-              <div className="rx-dialog-handle sm:hidden" aria-hidden="true" />
               <div className="flex items-start justify-between gap-4">
                 <div>
                   {user && (
